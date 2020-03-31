@@ -1,0 +1,10 @@
+﻿{
+    "Name": "EarningsTracker",
+    "Author": "synndicate",
+    "Version": "0.1.0",
+    "Description": "Track your earnings to display onto a web interface",
+    "UniqueID": "synndicate.EarningsTracker",
+    "EntryDll": "EarningsTracker.dll",
+    "MinimumApiVersion": "2.10.0",
+    "UpdateKeys": []
+}
