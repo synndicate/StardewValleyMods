@@ -16,6 +16,8 @@ namespace EarningsTracker
             helper.Events.Display.MenuChanged += DisplayMenuChanged;
             helper.Events.GameLoop.DayStarted += GameLoopDayStarted;
             helper.Events.GameLoop.DayEnding += GameLoopDayEnding;
+            helper.Events.GameLoop.SaveLoaded += GameLoopSaveLoaded;
+            helper.Events.GameLoop.ReturnedToTitle += GameLoopReturnedToTitle;
             helper.Events.Player.InventoryChanged += PlayerInventoryChanged;
             helper.Events.Player.Warped += PlayerWarped;
 
@@ -41,7 +43,7 @@ namespace EarningsTracker
                     binTotal += Utility.getSellToStorePriceOfItem(item);
                 }
 
-                Monitor.Log($"bin total: {binTotal}", LogLevel.Debug);
+                Monitor.Log($"Current Bin Total: {binTotal}", LogLevel.Warn);
                 Game1.addHUDMessage(new HUDMessage($"Bin Total: {binTotal}", 2));
             }
         }
@@ -50,7 +52,9 @@ namespace EarningsTracker
         ** Private Fields
         ******************/
 
-        private uint CurrentTotalEarnings = 0;
+        private uint CurrentEarnings = 0;
+        private bool HasSaveLoaded = false;
+        private bool InShopMenu = false;
 
         /******************
         ** Event Handlers
@@ -58,53 +62,65 @@ namespace EarningsTracker
 
         private void DisplayMenuChanged(object sender, MenuChangedEventArgs e)
         {
+            if (!HasSaveLoaded) { return; }
+
+            if (e.NewMenu is StardewValley.Menus.ShopMenu)
+            {
+                InShopMenu = true;
+            }
+            else if (e.OldMenu is StardewValley.Menus.ShopMenu)
+            {
+                InShopMenu = false;
+            }
+
             if (e.OldMenu is StardewValley.Menus.GameMenu)
             {
-                if (Game1.player.totalMoneyEarned > CurrentTotalEarnings)
+                if (Game1.player.totalMoneyEarned > CurrentEarnings)
                 {
-                    Monitor.Log($"Earned {Game1.player.totalMoneyEarned - CurrentTotalEarnings}g from trashing", LogLevel.Debug);
-                    CurrentTotalEarnings = Game1.player.totalMoneyEarned;
+                    Monitor.Log($"Earned {Game1.player.totalMoneyEarned - CurrentEarnings}g from trashing", LogLevel.Warn);
+                    CurrentEarnings = Game1.player.totalMoneyEarned;
                 }
             }
             else if (e.OldMenu is StardewValley.Menus.QuestLog)
             {
-                if (Game1.player.totalMoneyEarned > CurrentTotalEarnings)
+                if (Game1.player.totalMoneyEarned > CurrentEarnings)
                 {
-                    Monitor.Log($"Earned {Game1.player.totalMoneyEarned - CurrentTotalEarnings}g from quest reward", LogLevel.Debug);
-                    CurrentTotalEarnings = Game1.player.totalMoneyEarned;
+                    Monitor.Log($"Earned {Game1.player.totalMoneyEarned - CurrentEarnings}g from quest reward", LogLevel.Warn);
+                    CurrentEarnings = Game1.player.totalMoneyEarned;
                 }
             }
             else if (e.OldMenu is StardewValley.Menus.AnimalQueryMenu)
             {
-                if (Game1.player.totalMoneyEarned > CurrentTotalEarnings)
+                if (Game1.player.totalMoneyEarned > CurrentEarnings)
                 {
-                    Monitor.Log($"Earned {Game1.player.totalMoneyEarned - CurrentTotalEarnings}g from selling animals", LogLevel.Debug);
-                    CurrentTotalEarnings = Game1.player.totalMoneyEarned;
+                    Monitor.Log($"Earned {Game1.player.totalMoneyEarned - CurrentEarnings}g from selling animals", LogLevel.Warn);
+                    CurrentEarnings = Game1.player.totalMoneyEarned;
                 }
             }
             else if (e.NewMenu is StardewValley.Menus.LetterViewerMenu || e.OldMenu is StardewValley.Menus.LetterViewerMenu)
             {
-                if (Game1.player.totalMoneyEarned > CurrentTotalEarnings)
+                if (Game1.player.totalMoneyEarned > CurrentEarnings)
                 {
-                    Monitor.Log($"Earned {Game1.player.totalMoneyEarned - CurrentTotalEarnings}g from mail", LogLevel.Debug);
-                    CurrentTotalEarnings = Game1.player.totalMoneyEarned;
+                    Monitor.Log($"Earned {Game1.player.totalMoneyEarned - CurrentEarnings}g from mail", LogLevel.Warn);
+                    CurrentEarnings = Game1.player.totalMoneyEarned;
                 }
             }
             else
             {
-                if (Game1.player.totalMoneyEarned > CurrentTotalEarnings)
+                if (Game1.player.totalMoneyEarned > CurrentEarnings)
                 {
-                    Monitor.Log($"Earned {Game1.player.totalMoneyEarned - CurrentTotalEarnings}g from unaccounted source", LogLevel.Warn);
-                    CurrentTotalEarnings = Game1.player.totalMoneyEarned;
-                }
+                    Monitor.Log($"Earned {Game1.player.totalMoneyEarned - CurrentEarnings}g from unaccounted source", LogLevel.Error);
+                    Monitor.Log($"CTE: {CurrentEarnings}, player: {Game1.player.totalMoneyEarned}", LogLevel.Error);
 
+                    CurrentEarnings = Game1.player.totalMoneyEarned;
+                }
             }
         }
 
         private void GameLoopDayStarted(object sender, DayStartedEventArgs e)
         {
-            CurrentTotalEarnings = Game1.player.totalMoneyEarned;
-            Monitor.Log($"total earnings: {CurrentTotalEarnings}", LogLevel.Debug);
+            CurrentEarnings = Game1.player.totalMoneyEarned;
+            Monitor.Log($"{TodayAsString()} Current Earnings: {CurrentEarnings}", LogLevel.Warn);
         }
 
         private void GameLoopDayEnding(object sender, DayEndingEventArgs e)
@@ -117,8 +133,18 @@ namespace EarningsTracker
                 binTotal += Utility.getSellToStorePriceOfItem(item);
             }
 
-            CurrentTotalEarnings += (uint)binTotal;
-            Monitor.Log($"\n{TodayAsString()}\nTotal Earnings from Shipping: {CurrentTotalEarnings}", LogLevel.Debug);
+            CurrentEarnings += (uint)binTotal;
+            Monitor.Log($"{TodayAsString()} Today's Earnings from Shipping: {binTotal}, Total Earnings: {CurrentEarnings}", LogLevel.Warn);
+        }
+
+        private void GameLoopReturnedToTitle(object sender, ReturnedToTitleEventArgs e)
+        {
+            HasSaveLoaded = false;
+        }
+
+        private void GameLoopSaveLoaded(object sender, SaveLoadedEventArgs e)
+        {
+            HasSaveLoaded = true;
         }
 
         private void PlayerInventoryChanged(object sender, InventoryChangedEventArgs e)
@@ -131,7 +157,7 @@ namespace EarningsTracker
         // dont need but doesn't hurt as a margin of safety?
         private void PlayerWarped(object sender, WarpedEventArgs e)
         {
-            CurrentTotalEarnings = Game1.player.totalMoneyEarned;
+            CurrentEarnings = Game1.player.totalMoneyEarned;
         }
 
         /******************
@@ -140,31 +166,42 @@ namespace EarningsTracker
 
         private void ParseInventoryChangedEvent(InventoryChangedEventArgs e)
         {
+            if (!InShopMenu) { return; }
+
             uint NewTotalEarnings = Game1.player.totalMoneyEarned;
             int checksum = 0;
 
-            if (NewTotalEarnings <= CurrentTotalEarnings) { return; }
+            if (NewTotalEarnings <= CurrentEarnings) { return; }
             else if (e.Removed.Count() > 0)
             {
                 foreach (Item item in e.Removed)
                 {
-                    var obj = item as StardewValley.Object;
                     var salePrice = Utility.getSellToStorePriceOfItem(item);
 
-                    Monitor.Log($"\tSold: {item.Stack} {item.DisplayName} ({QualityIntToString(obj.quality)})", LogLevel.Debug);
-                    Monitor.Log($"\tSale Price: {salePrice}", LogLevel.Debug);
+                    if (item is StardewValley.Object)
+                    {
+                        var obj = item as StardewValley.Object;
+
+                        Monitor.Log($"\tSold: {item.Stack} {item.DisplayName} ({QualityIntToString(obj.quality)})", LogLevel.Warn);
+                        Monitor.Log($"\tSale Price: {salePrice}", LogLevel.Warn);
+                    }
+                    else
+                    {
+                        Monitor.Log($"\tSold: {item.Stack} {item.DisplayName}", LogLevel.Warn);
+                        Monitor.Log($"\tSale Price: {salePrice}", LogLevel.Warn);
+                    }
 
                     checksum += salePrice;
                 }
 
-                if (checksum != NewTotalEarnings - CurrentTotalEarnings)
+                if (checksum != NewTotalEarnings - CurrentEarnings)
                 {
-                    Monitor.Log("Earning failed checksum", LogLevel.Warn);
-                    Monitor.Log($"Change in earnings = {NewTotalEarnings - CurrentTotalEarnings}", LogLevel.Warn);
-                    Monitor.Log($"Checksum = {checksum}", LogLevel.Warn);
+                    Monitor.Log("Earning failed checksum", LogLevel.Error);
+                    Monitor.Log($"Change in earnings = {NewTotalEarnings - CurrentEarnings}", LogLevel.Error);
+                    Monitor.Log($"Checksum = {checksum}", LogLevel.Error);
                 }
 
-                CurrentTotalEarnings = NewTotalEarnings;
+                CurrentEarnings = NewTotalEarnings;
             }
             else if (e.QuantityChanged.Count() > 0)
             {
@@ -174,24 +211,24 @@ namespace EarningsTracker
                     var sizeChange = change.OldSize - change.NewSize;
                     var salePrice = Utility.getSellToStorePriceOfItem(change.Item, false) * sizeChange;
 
-                    Monitor.Log($"\tSold: {sizeChange} {change.Item.DisplayName} ({QualityIntToString(obj.quality)})", LogLevel.Debug);
-                    Monitor.Log($"\tSale Price: {salePrice}", LogLevel.Debug);
+                    Monitor.Log($"\tSold: {sizeChange} {change.Item.DisplayName} ({QualityIntToString(obj.quality)})", LogLevel.Warn);
+                    Monitor.Log($"\tSale Price: {salePrice}", LogLevel.Warn);
 
                     checksum += salePrice;
                 }
 
-                if (checksum != NewTotalEarnings - CurrentTotalEarnings)
+                if (checksum != NewTotalEarnings - CurrentEarnings)
                 {
-                    Monitor.Log("Earning failed checksum", LogLevel.Warn);
-                    Monitor.Log($"Change in earnings = {NewTotalEarnings - CurrentTotalEarnings}", LogLevel.Warn);
-                    Monitor.Log($"Checksum = {checksum}", LogLevel.Warn);
+                    Monitor.Log("Earning failed checksum", LogLevel.Error);
+                    Monitor.Log($"Change in earnings = {NewTotalEarnings - CurrentEarnings}", LogLevel.Error);
+                    Monitor.Log($"Checksum = {checksum}", LogLevel.Error);
                 }
 
-                CurrentTotalEarnings = NewTotalEarnings;
+                CurrentEarnings = NewTotalEarnings;
             }
             else
             {
-                Monitor.Log("Unaccounted earnings from an item removed from inventory", LogLevel.Warn);
+                Monitor.Log("Unaccounted earnings from an item removed from inventory", LogLevel.Error);
             }
         }
 
