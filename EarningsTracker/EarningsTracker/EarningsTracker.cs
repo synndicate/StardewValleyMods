@@ -13,9 +13,11 @@ namespace EarningsTracker
     {
         public override void Entry(IModHelper helper)
         {
+            helper.Events.Display.MenuChanged += DisplayMenuChanged;
             helper.Events.GameLoop.DayStarted += GameLoopDayStarted;
             helper.Events.GameLoop.DayEnding += GameLoopDayEnding;
-            helper.Events.Player.InventoryChanged += PlayerInventoryChanged;    
+            helper.Events.Player.InventoryChanged += PlayerInventoryChanged;
+            helper.Events.Player.Warped += PlayerWarped;
 
             helper.Events.Input.ButtonPressed += InputButtonPressed;
         }
@@ -50,10 +52,55 @@ namespace EarningsTracker
 
         private uint CurrentTotalEarnings = 0;
 
-
         /******************
         ** Event Handlers
         ******************/
+
+        private void DisplayMenuChanged(object sender, MenuChangedEventArgs e)
+        {
+            if (e.OldMenu is StardewValley.Menus.GameMenu)
+            {
+                if (Game1.player.totalMoneyEarned > CurrentTotalEarnings)
+                {
+                    Monitor.Log($"Earned {Game1.player.totalMoneyEarned - CurrentTotalEarnings}g from trashing", LogLevel.Debug);
+                    CurrentTotalEarnings = Game1.player.totalMoneyEarned;
+                }
+            }
+            else if (e.OldMenu is StardewValley.Menus.QuestLog)
+            {
+                if (Game1.player.totalMoneyEarned > CurrentTotalEarnings)
+                {
+                    Monitor.Log($"Earned {Game1.player.totalMoneyEarned - CurrentTotalEarnings}g from quest reward", LogLevel.Debug);
+                    CurrentTotalEarnings = Game1.player.totalMoneyEarned;
+                }
+            }
+            else if (e.OldMenu is StardewValley.Menus.AnimalQueryMenu)
+            {
+                if (Game1.player.totalMoneyEarned > CurrentTotalEarnings)
+                {
+                    Monitor.Log($"Earned {Game1.player.totalMoneyEarned - CurrentTotalEarnings}g from selling animals", LogLevel.Debug);
+                    CurrentTotalEarnings = Game1.player.totalMoneyEarned;
+                }
+            }
+            else if (e.NewMenu is StardewValley.Menus.LetterViewerMenu || e.OldMenu is StardewValley.Menus.LetterViewerMenu)
+            {
+                if (Game1.player.totalMoneyEarned > CurrentTotalEarnings)
+                {
+                    Monitor.Log($"Earned {Game1.player.totalMoneyEarned - CurrentTotalEarnings}g from mail", LogLevel.Debug);
+                    CurrentTotalEarnings = Game1.player.totalMoneyEarned;
+                }
+            }
+            else
+            {
+                if (Game1.player.totalMoneyEarned > CurrentTotalEarnings)
+                {
+                    Monitor.Log($"Earned {Game1.player.totalMoneyEarned - CurrentTotalEarnings}g from unaccounted source", LogLevel.Warn);
+                    CurrentTotalEarnings = Game1.player.totalMoneyEarned;
+                }
+
+            }
+        }
+
         private void GameLoopDayStarted(object sender, DayStartedEventArgs e)
         {
             CurrentTotalEarnings = Game1.player.totalMoneyEarned;
@@ -71,7 +118,7 @@ namespace EarningsTracker
             }
 
             CurrentTotalEarnings += (uint)binTotal;
-            Monitor.Log($"\n{TodayAsString()}\nTotal Earnings: {CurrentTotalEarnings}", LogLevel.Debug);
+            Monitor.Log($"\n{TodayAsString()}\nTotal Earnings from Shipping: {CurrentTotalEarnings}", LogLevel.Debug);
         }
 
         private void PlayerInventoryChanged(object sender, InventoryChangedEventArgs e)
@@ -79,6 +126,12 @@ namespace EarningsTracker
             if (!e.IsLocalPlayer) { return; }
 
             ParseInventoryChangedEvent(e);
+        }
+
+        // dont need but doesn't hurt as a margin of safety?
+        private void PlayerWarped(object sender, WarpedEventArgs e)
+        {
+            CurrentTotalEarnings = Game1.player.totalMoneyEarned;
         }
 
         /******************
@@ -138,7 +191,7 @@ namespace EarningsTracker
             }
             else
             {
-                Monitor.Log("Unaccounted earnings", LogLevel.Warn);
+                Monitor.Log("Unaccounted earnings from an item removed from inventory", LogLevel.Warn);
             }
         }
 
