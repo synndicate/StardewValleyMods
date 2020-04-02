@@ -125,16 +125,11 @@ namespace EarningsTracker
 
         private void GameLoopDayEnding(object sender, DayEndingEventArgs e)
         {
-            NetCollection<Item> bin = Game1.getFarm().getShippingBin(Game1.player);
-            int binTotal = 0;
-
-            foreach (Item item in bin)
-            {
-                binTotal += Utility.getSellToStorePriceOfItem(item);
-            }
-
-            CurrentEarnings += (uint)binTotal;
-            Monitor.Log($"{TodayAsString()} Today's Earnings from Shipping: {binTotal}, Total Earnings: {CurrentEarnings}", LogLevel.Warn);
+            Monitor.Log("====================", LogLevel.Warn);
+            Monitor.Log("Day Ending", LogLevel.Warn);
+            Monitor.Log("====================", LogLevel.Warn);
+            Monitor.Log($"getShippingBin().Count: {Game1.getFarm().getShippingBin(Game1.player).Count}", LogLevel.Warn);
+            ParseShippingBin();
         }
 
         private void GameLoopReturnedToTitle(object sender, ReturnedToTitleEventArgs e)
@@ -163,6 +158,92 @@ namespace EarningsTracker
         /******************
         ** Private Methods
         ******************/
+
+        private void ParseShippingBin()
+        {
+            if (Game1.getFarm().getShippingBin(Game1.player).Count <= 0) { return; }
+
+            var items = Game1.getFarm().getShippingBin(Game1.player);
+            var itemValues = new Dictionary<Item, int>();
+            var categoryItems = new List<List<Item>>();
+            var categoryTotals = new List<int>();
+            
+            Utility.consolidateStacks(items);
+
+            for (int i = 0; i < 5; i++)
+            {
+                categoryItems.Add(new List<Item>());
+                categoryTotals.Add(0);
+            }
+
+            foreach (Item item in (IEnumerable<Item>) items)
+            {
+                if (item is StardewValley.Object)
+                {
+                    StardewValley.Object obj = item as StardewValley.Object;
+                    int categoryIndexForObject = getCategoryIndexForObject(obj);
+                    int value = Utility.getSellToStorePriceOfItem(item);
+
+                    categoryItems[categoryIndexForObject].Add(item);
+                    categoryTotals[categoryIndexForObject] += value;
+                    itemValues.Add(item, value);
+                }
+            }
+
+            uint binTotal = (uint)categoryTotals.Aggregate(0, (acc, x) => acc + x);
+            CurrentEarnings += binTotal;
+
+            Monitor.Log("====================", LogLevel.Warn);
+            Monitor.Log("Parsing Shipping Bin", LogLevel.Warn);
+            Monitor.Log("====================", LogLevel.Warn);
+            Monitor.Log($"Farming: {categoryTotals[0]}", LogLevel.Warn);
+            Monitor.Log($"Foraging: {categoryTotals[1]}", LogLevel.Warn);
+            Monitor.Log($"Fishing: {categoryTotals[2]}", LogLevel.Warn);
+            Monitor.Log($"Mining: {categoryTotals[3]}", LogLevel.Warn);
+            Monitor.Log($"Other: {categoryTotals[4]}", LogLevel.Warn);
+            Monitor.Log($"Total: {binTotal}", LogLevel.Warn);
+
+        }
+
+        private int getCategoryIndexForObject(StardewValley.Object obj)
+        {
+            switch ((int)(NetFieldBase<int, NetInt>)obj.parentSheetIndex)
+            {
+                case 296:
+                case 396:
+                case 402:
+                case 406:
+                case 410:
+                case 414:
+                case 418:
+                    return 1;
+                default:
+                    switch (obj.Category)
+                    {
+                        case -81:
+                        case -27:
+                        case -23:
+                            return 1;
+                        case -80:
+                        case -79:
+                        case -75:
+                        case -26:
+                        case -14:
+                        case -6:
+                        case -5:
+                            return 0;
+                        case -20:
+                        case -4:
+                            return 2;
+                        case -15:
+                        case -12:
+                        case -2:
+                            return 3;
+                        default:
+                            return 4;
+                    }
+            }
+        }
 
         private void ParseInventoryChangedEvent(InventoryChangedEventArgs e)
         {
