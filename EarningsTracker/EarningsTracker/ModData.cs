@@ -28,29 +28,29 @@ namespace EarningsTracker
     {
         public string Name { get; set; }
         public int Qty { get; set; }
-        public int Price { get; set; }
+        public int Value { get; set; }
 
         private JsonItem() { }
 
-        public JsonItem(string name, int qty, int price) 
+        public JsonItem(string name, int qty, int value) 
         {
             Name = name;
             Qty = qty;
-            Price = price;
+            Value = value;
         }
     }
 
-    public sealed class JsonItemCategory // list + total
+    public sealed class JsonItemList // list + total
     {
         public int Total { get; set; }
         public List<JsonItem> Items { get; set; }
 
-        private JsonItemCategory() { }
+        private JsonItemList() { }
 
-        public JsonItemCategory(List<JsonItem> items)
+        public JsonItemList(List<JsonItem> items)
         {
             Items = items;
-            Total = items.Aggregate(0, (acc, x) => acc + x.Price);
+            Total = items.Aggregate(0, (acc, x) => acc + x.Value);
         }
     }
 
@@ -58,11 +58,11 @@ namespace EarningsTracker
     {
         public int Total { get; set; }
 
-        public Dictionary<string, JsonItemCategory> Categories { get; set; }
+        public Dictionary<string, JsonItemList> Categories { get; set; }
 
         private JsonCategoryMap() { }
 
-        public JsonCategoryMap(Dictionary<string, JsonItemCategory> categories)
+        public JsonCategoryMap(Dictionary<string, JsonItemList> categories)
         {
             Categories = categories;
             Total = categories.Values.Aggregate(0, (acc, x) => acc + x.Total);

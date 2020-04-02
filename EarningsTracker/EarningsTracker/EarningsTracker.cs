@@ -23,6 +23,11 @@ namespace EarningsTracker
             helper.Events.Player.Warped += PlayerWarped;
 
             helper.Events.Input.ButtonPressed += InputButtonPressed;
+
+            for (int i = 0; i < CategoryNames.Length; i++)
+            {
+                ItemsSold.Add(CategoryNames[i], new List<JsonItem>());
+            }
         }
 
         /******************
@@ -53,13 +58,24 @@ namespace EarningsTracker
         ** Private Fields
         ******************/
 
-        private uint CurrentEarnings = 0;
+        private uint TotalTrackedEarnings = 0;
+        private int AnimalEarnings = 0;
+        private int MailEarnings = 0;
+        private int QuestEarnings = 0;
+        private int TrashEarnings = 0;
+        private int UnknownEarnings = 0;
+
         private bool HasSaveLoaded = false;
         private bool InShopMenu = false;
 
 
+
+
         // array must be of length 5
-        private string[] CategoryNames = { "Farming", "Foraging", "Fishing", "Mining", "Other" };
+        private readonly string[] CategoryNames = { "Farming", "Foraging", "Fishing", "Mining", "Other" };
+
+        // we use jsonItem because sometimes we want to change the stack/qty value stored in item
+        private Dictionary<string, List<JsonItem>> ItemsSold = new Dictionary<string, List<JsonItem>>();
 
         /******************
         ** Event Handlers
@@ -67,8 +83,15 @@ namespace EarningsTracker
 
         private void DisplayMenuChanged(object sender, MenuChangedEventArgs e)
         {
-            if (!HasSaveLoaded) { return; }
+            /*Monitor.Log("====================", LogLevel.Warn);
+            Monitor.Log("Display Menu Changed", LogLevel.Warn);
+            Monitor.Log("====================", LogLevel.Warn);
+            Monitor.Log($"Old menu: {e.OldMenu?.GetType()?.ToString() ?? "null"}", LogLevel.Warn);
+            Monitor.Log($"New menu: {e.NewMenu?.GetType()?.ToString() ?? "null"}", LogLevel.Warn);*/
 
+
+            if (!HasSaveLoaded) { return; }
+            
             if (e.NewMenu is StardewValley.Menus.ShopMenu)
             {
                 InShopMenu = true;
@@ -78,63 +101,51 @@ namespace EarningsTracker
                 InShopMenu = false;
             }
 
+            if (Game1.player.totalMoneyEarned <= TotalTrackedEarnings) { return; }
+            int newEarnings = Convert.ToInt32(Game1.player.totalMoneyEarned - TotalTrackedEarnings);
+
             if (e.OldMenu is StardewValley.Menus.GameMenu)
             {
-                if (Game1.player.totalMoneyEarned > CurrentEarnings)
-                {
-                    Monitor.Log($"Earned {Game1.player.totalMoneyEarned - CurrentEarnings}g from trashing", LogLevel.Warn);
-                    CurrentEarnings = Game1.player.totalMoneyEarned;
-                }
+                Monitor.Log($"Earned {Game1.player.totalMoneyEarned - TotalTrackedEarnings}g from trashing", LogLevel.Warn);
+                TrashEarnings += newEarnings;
             }
             else if (e.OldMenu is StardewValley.Menus.QuestLog)
             {
-                if (Game1.player.totalMoneyEarned > CurrentEarnings)
-                {
-                    Monitor.Log($"Earned {Game1.player.totalMoneyEarned - CurrentEarnings}g from quest reward", LogLevel.Warn);
-                    CurrentEarnings = Game1.player.totalMoneyEarned;
-                }
+                Monitor.Log($"Earned {Game1.player.totalMoneyEarned - TotalTrackedEarnings}g from quest reward", LogLevel.Warn);
+                QuestEarnings += newEarnings;
             }
             else if (e.OldMenu is StardewValley.Menus.AnimalQueryMenu)
             {
-                if (Game1.player.totalMoneyEarned > CurrentEarnings)
-                {
-                    Monitor.Log($"Earned {Game1.player.totalMoneyEarned - CurrentEarnings}g from selling animals", LogLevel.Warn);
-                    CurrentEarnings = Game1.player.totalMoneyEarned;
-                }
+                Monitor.Log($"Earned {Game1.player.totalMoneyEarned - TotalTrackedEarnings}g from selling animals", LogLevel.Warn);
+                AnimalEarnings += newEarnings;
             }
             else if (e.NewMenu is StardewValley.Menus.LetterViewerMenu || e.OldMenu is StardewValley.Menus.LetterViewerMenu)
             {
-                if (Game1.player.totalMoneyEarned > CurrentEarnings)
-                {
-                    Monitor.Log($"Earned {Game1.player.totalMoneyEarned - CurrentEarnings}g from mail", LogLevel.Warn);
-                    CurrentEarnings = Game1.player.totalMoneyEarned;
-                }
+                Monitor.Log($"Earned {Game1.player.totalMoneyEarned - TotalTrackedEarnings}g from mail", LogLevel.Warn);
+                MailEarnings += newEarnings;
             }
             else
             {
-                if (Game1.player.totalMoneyEarned > CurrentEarnings)
-                {
-                    Monitor.Log($"Earned {Game1.player.totalMoneyEarned - CurrentEarnings}g from unaccounted source", LogLevel.Error);
-                    Monitor.Log($"CTE: {CurrentEarnings}, player: {Game1.player.totalMoneyEarned}", LogLevel.Error);
-
-                    CurrentEarnings = Game1.player.totalMoneyEarned;
-                }
+                Monitor.Log($"Earned {Game1.player.totalMoneyEarned - TotalTrackedEarnings}g from unaccounted source", LogLevel.Error);
+                Monitor.Log($"CTE: {TotalTrackedEarnings}, player: {Game1.player.totalMoneyEarned}", LogLevel.Error);
+                UnknownEarnings += newEarnings;
             }
+
+            TotalTrackedEarnings = Game1.player.totalMoneyEarned;
         }
 
         private void GameLoopDayStarted(object sender, DayStartedEventArgs e)
         {
-            CurrentEarnings = Game1.player.totalMoneyEarned;
-            Monitor.Log($"{TodayAsString()} Current Earnings: {CurrentEarnings}", LogLevel.Warn);
+            TotalTrackedEarnings = Game1.player.totalMoneyEarned;
+            Monitor.Log($"{TodayAsString()} Current Earnings: {TotalTrackedEarnings}", LogLevel.Warn);
         }
 
         private void GameLoopDayEnding(object sender, DayEndingEventArgs e)
         {
-            Monitor.Log("====================", LogLevel.Warn);
-            Monitor.Log("Day Ending", LogLevel.Warn);
-            Monitor.Log("====================", LogLevel.Warn);
-            Monitor.Log($"getShippingBin().Count: {Game1.getFarm().getShippingBin(Game1.player).Count}", LogLevel.Warn);
-            ParseShippingBin();
+            // Game clears shipping bin if done later
+
+            var jsonDay = PackageDayData();
+            Helper.Data.WriteJsonFile(ModData.JsonPath(StardewModdingAPI.Constants.SaveFolderName), jsonDay);
         }
 
         private void GameLoopReturnedToTitle(object sender, ReturnedToTitleEventArgs e)
@@ -159,7 +170,6 @@ namespace EarningsTracker
         private void GameLoopSaving(object sender, SavingEventArgs e)
         {
             var data = new ModData(StardewModdingAPI.Constants.SaveFolderName);
-            // Helper.Data.WriteJsonFile(ModData.JsonPath(StardewModdingAPI.Constants.SaveFolderName), data);
             Helper.Data.WriteSaveData(ModData.DataKey, data);
         }
 
@@ -173,21 +183,19 @@ namespace EarningsTracker
         // dont need but doesn't hurt as a margin of safety?
         private void PlayerWarped(object sender, WarpedEventArgs e)
         {
-            CurrentEarnings = Game1.player.totalMoneyEarned;
+            TotalTrackedEarnings = Game1.player.totalMoneyEarned;
         }
 
         /******************
         ** Private Methods
         ******************/
-        private void ParseShippingBin()
+        private JsonCategoryMap ParseShippingBin()
         {
-            if (Game1.getFarm().getShippingBin(Game1.player).Count <= 0) { return; }
-
             var items = Game1.getFarm().getShippingBin(Game1.player);
             Utility.consolidateStacks(items);
 
             var listMap = new Dictionary<string, List<JsonItem>>();
-            var categoryMap = new Dictionary<string, JsonItemCategory>();
+            var categoryMap = new Dictionary<string, JsonItemList>();
 
             for (int i = 0; i < CategoryNames.Length; i++)
             {
@@ -196,27 +204,37 @@ namespace EarningsTracker
 
             foreach (Item item in (IEnumerable<Item>)items)
             {
-                JsonItem jsonItem = new JsonItem(item.Name, item.Stack, Utility.getSellToStorePriceOfItem(item));
+                JsonItem jsonItem = new JsonItem(FullItemName(item), item.Stack, Utility.getSellToStorePriceOfItem(item));
                 listMap[GetCategoryNameForItem(item)].Add(jsonItem);
             }
 
             for (int i = 0; i < CategoryNames.Length; i++)
             {
-                categoryMap.Add(CategoryNames[i], new JsonItemCategory(listMap[CategoryNames[i]]));
+                categoryMap.Add(CategoryNames[i], new JsonItemList(listMap[CategoryNames[i]]));
             }
 
-            JsonCategoryMap jsonShipping = new JsonCategoryMap(categoryMap);
-            Helper.Data.WriteJsonFile(ModData.JsonPath(StardewModdingAPI.Constants.SaveFolderName), jsonShipping);
+            return new JsonCategoryMap(categoryMap);
+        }
 
-            Monitor.Log("====================", LogLevel.Warn);
-            Monitor.Log("Parsing Shipping Bin", LogLevel.Warn);
-            Monitor.Log("====================", LogLevel.Warn);
-            Monitor.Log($"Farming: {jsonShipping.Categories["Farming"].Total}", LogLevel.Warn);
-            Monitor.Log($"Foraging: {jsonShipping.Categories["Foraging"].Total}", LogLevel.Warn);
-            Monitor.Log($"Fishing: {jsonShipping.Categories["Fishing"].Total}", LogLevel.Warn);
-            Monitor.Log($"Mining: {jsonShipping.Categories["Mining"].Total}", LogLevel.Warn);
-            Monitor.Log($"Other: {jsonShipping.Categories["Other"].Total}", LogLevel.Warn);
-            Monitor.Log($"Total: {jsonShipping.Total}", LogLevel.Warn);
+        private JsonCategoryMap ParseStore()
+        {
+            var categoryMap = new Dictionary<string, JsonItemList>();
+
+            for (int i = 0; i < CategoryNames.Length; i++)
+            {
+                categoryMap.Add(CategoryNames[i], new JsonItemList(ItemsSold[CategoryNames[i]]));
+            }
+
+            return new JsonCategoryMap(categoryMap);
+        }
+
+
+        private JsonDay PackageDayData()
+        {
+            var shippingJson = ParseShippingBin();
+            var storeJson = ParseStore();
+
+            return new JsonDay(shippingJson, storeJson, AnimalEarnings, MailEarnings, QuestEarnings, TrashEarnings, UnknownEarnings);
         }
 
         private string GetCategoryNameForItem(Item item)
@@ -276,12 +294,12 @@ namespace EarningsTracker
         private void ParseInventoryChangedEvent(InventoryChangedEventArgs e)
         {
             if (!InShopMenu) { return; }
+            if (Game1.player.totalMoneyEarned <= TotalTrackedEarnings) { return; }
 
             uint NewTotalEarnings = Game1.player.totalMoneyEarned;
             int checksum = 0;
 
-            if (NewTotalEarnings <= CurrentEarnings) { return; }
-            else if (e.Removed.Count() > 0)
+            if (e.Removed.Count() > 0)
             {
                 foreach (Item item in e.Removed)
                 {
@@ -291,26 +309,32 @@ namespace EarningsTracker
                     {
                         var obj = item as StardewValley.Object;
 
-                        Monitor.Log($"\tSold: {item.Stack} {item.DisplayName} ({QualityIntToString(obj.quality)})", LogLevel.Warn);
+                        Monitor.Log($"\tSold: {item.Stack} {FullItemName(obj)}", LogLevel.Warn);
                         Monitor.Log($"\tSale Price: {salePrice}", LogLevel.Warn);
+
+                        JsonItem jsonItem = new JsonItem(FullItemName(obj), item.Stack, salePrice);
+                        ItemsSold[GetCategoryNameForItem(item)].Add(jsonItem);
                     }
                     else
                     {
-                        Monitor.Log($"\tSold: {item.Stack} {item.DisplayName}", LogLevel.Warn);
+                        Monitor.Log($"\tSold: {item.Stack} {FullItemName(item)}", LogLevel.Warn);
                         Monitor.Log($"\tSale Price: {salePrice}", LogLevel.Warn);
+
+                        JsonItem jsonItem = new JsonItem(FullItemName(item), item.Stack, salePrice);
+                        ItemsSold[GetCategoryNameForItem(item)].Add(jsonItem);
                     }
 
                     checksum += salePrice;
                 }
 
-                if (checksum != NewTotalEarnings - CurrentEarnings)
+                if (checksum != NewTotalEarnings - TotalTrackedEarnings)
                 {
                     Monitor.Log("Earning failed checksum", LogLevel.Error);
-                    Monitor.Log($"Change in earnings = {NewTotalEarnings - CurrentEarnings}", LogLevel.Error);
+                    Monitor.Log($"Change in earnings = {NewTotalEarnings - TotalTrackedEarnings}", LogLevel.Error);
                     Monitor.Log($"Checksum = {checksum}", LogLevel.Error);
                 }
 
-                CurrentEarnings = NewTotalEarnings;
+                TotalTrackedEarnings = NewTotalEarnings;
             }
             else if (e.QuantityChanged.Count() > 0)
             {
@@ -320,20 +344,23 @@ namespace EarningsTracker
                     var sizeChange = change.OldSize - change.NewSize;
                     var salePrice = Utility.getSellToStorePriceOfItem(change.Item, false) * sizeChange;
 
-                    Monitor.Log($"\tSold: {sizeChange} {change.Item.DisplayName} ({QualityIntToString(obj.quality)})", LogLevel.Warn);
+                    Monitor.Log($"\tSold: {sizeChange} {FullItemName(obj)}", LogLevel.Warn);
                     Monitor.Log($"\tSale Price: {salePrice}", LogLevel.Warn);
+
+                    JsonItem jsonItem = new JsonItem(obj.Name, sizeChange, salePrice);
+                    ItemsSold[GetCategoryNameForItem(obj)].Add(jsonItem);
 
                     checksum += salePrice;
                 }
 
-                if (checksum != NewTotalEarnings - CurrentEarnings)
+                if (checksum != NewTotalEarnings - TotalTrackedEarnings)
                 {
                     Monitor.Log("Earning failed checksum", LogLevel.Error);
-                    Monitor.Log($"Change in earnings = {NewTotalEarnings - CurrentEarnings}", LogLevel.Error);
+                    Monitor.Log($"Change in earnings = {NewTotalEarnings - TotalTrackedEarnings}", LogLevel.Error);
                     Monitor.Log($"Checksum = {checksum}", LogLevel.Error);
                 }
 
-                CurrentEarnings = NewTotalEarnings;
+                TotalTrackedEarnings = NewTotalEarnings;
             }
             else
             {
@@ -344,20 +371,30 @@ namespace EarningsTracker
         /******************
         ** Utility Methods
         ******************/
-        private string QualityIntToString(Netcode.NetInt quality)
+
+        private string FullItemName(Item item)
         {
-            switch (quality)
+            if (item is StardewValley.Object)
             {
-                case 0:
-                    return "regular";
-                case 1:
-                    return "silver";
-                case 2:
-                    return "gold";
-                case 3:
-                    return "iridium";
-                default:
-                    return "unknown";
+                var obj = item as StardewValley.Object;
+
+                switch (obj.quality.Value)
+                {
+                    case 0:
+                        return obj.DisplayName;
+                    case 1:
+                        return obj.DisplayName + " (silver)";
+                    case 2:
+                        return obj.DisplayName + " (gold)";
+                    case 3:
+                        return obj.DisplayName + " (iridium)"; // test this
+                    default:
+                        return obj.DisplayName + " (unknown)"; // test this
+                }
+            }
+            else
+            {
+                return item.DisplayName;
             }
         }
 
