@@ -8,15 +8,8 @@ namespace EarningsTracker
 
     public sealed class ModData
     {
-        public static string DataKey = "ModData";
-
-        public static string JsonPath(string saveFolderName)
-        {
-            return "data/EarningsData+" + saveFolderName + ".json";
-        }
-
-
-        public string SaveName { get; set; }
+        public const string DataKey = "ModData";
+        public readonly string SaveName;
 
         private ModData() { }
 
@@ -24,13 +17,18 @@ namespace EarningsTracker
         {
             SaveName = saveName;
         }
+
+        public static string JsonPath(string saveFolderName)
+        {
+            return "data/EarningsData+" + saveFolderName + ".json";
+        }
     }
 
     public sealed class JsonItem
     {
-        public string Name { get; set; }
-        public int Qty { get; set; }
-        public int Value { get; set; }
+        public readonly string Name;
+        public readonly int Qty;
+        public readonly int Value;
 
         private JsonItem() { }
 
@@ -44,8 +42,8 @@ namespace EarningsTracker
 
     public sealed class JsonItemList // list + total
     {
-        public int Total { get; set; }
-        public List<JsonItem> Items { get; set; }
+        public readonly int Total;
+        public readonly List<JsonItem> Items;
 
         private JsonItemList() { }
 
@@ -58,9 +56,8 @@ namespace EarningsTracker
 
     public sealed class JsonCategoryMap // maps categories 
     {
-        public int Total { get; set; }
-
-        public Dictionary<Category, JsonItemList> Categories { get; set; }
+        public readonly int Total;
+        public readonly Dictionary<Category, JsonItemList> Categories;
 
         private JsonCategoryMap() { }
 
@@ -79,17 +76,16 @@ namespace EarningsTracker
         }
     }
 
-    // Note: The keys for shipped and store should always match
     public sealed class JsonDay
     {
-        public int Total { get; set; }
-        public JsonCategoryMap Shipped { get; set; }
-        public JsonCategoryMap Store { get; set; }
-        public int Animals { get; set; }
-        public int Mail { get; set; }
-        public int Quest { get; set; }
-        public int Trash { get; set; }
-        public int Unknown { get; set; }
+        public readonly int Total;
+        public readonly JsonCategoryMap;
+        public readonly JsonCategoryMap;
+        public readonly int Animals;
+        public readonly int Mail;
+        public readonly int Quest;
+        public readonly int Trash;
+        public readonly int Unknown;
 
         private JsonDay() { }
 
