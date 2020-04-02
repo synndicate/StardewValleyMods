@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.29926.136
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EarningsTracker", "EarningsTracker\EarningsTracker.csproj", "{73B5C4AE-C36F-4553-82FF-3FA3238C31FB}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EarningsTracker", "EarningsTracker.csproj", "{73B5C4AE-C36F-4553-82FF-3FA3238C31FB}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -26,6 +26,6 @@ Global
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {A01AC36F-1296-436E-8067-5D30F5C14921}
+		SolutionGuid = {609EB782-CBEC-4AC2-80A9-4B7BD09D5CAA}
 	EndGlobalSection
 EndGlobal

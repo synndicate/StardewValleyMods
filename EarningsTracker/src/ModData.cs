@@ -4,6 +4,8 @@ using System.Linq;
 
 namespace EarningsTracker
 {
+    using Category = String;
+
     public sealed class ModData
     {
         public static string DataKey = "ModData";
@@ -54,15 +56,15 @@ namespace EarningsTracker
         }
     }
 
-    public sealed class JsonCategoryMap // dictionary + total
+    public sealed class JsonCategoryMap // maps categories 
     {
         public int Total { get; set; }
 
-        public Dictionary<string, JsonItemList> Categories { get; set; }
+        public Dictionary<Category, JsonItemList> Categories { get; set; }
 
         private JsonCategoryMap() { }
 
-        public JsonCategoryMap(Dictionary<string, JsonItemList> categories)
+        public JsonCategoryMap(Dictionary<Category, JsonItemList> categories)
         {
             Categories = categories;
             Total = categories.Values.Aggregate(0, (acc, x) => acc + x.Total);

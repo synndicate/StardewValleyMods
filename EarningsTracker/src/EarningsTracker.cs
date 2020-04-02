@@ -9,25 +9,22 @@ using StardewValley;
 
 namespace EarningsTracker
 {
-    public class EarningsTracker : Mod
+    using Category = String;
+
+    public sealed class EarningsTracker : Mod
     {
         public override void Entry(IModHelper helper)
         {
             helper.Events.Display.MenuChanged += DisplayMenuChanged;
             helper.Events.GameLoop.DayStarted += GameLoopDayStarted;
             helper.Events.GameLoop.DayEnding += GameLoopDayEnding;
-            helper.Events.GameLoop.ReturnedToTitle += GameLoopReturnedToTitle;
             helper.Events.GameLoop.SaveLoaded += GameLoopSaveLoaded;
             helper.Events.GameLoop.Saving += GameLoopSaving;
             helper.Events.Player.InventoryChanged += PlayerInventoryChanged;
-            helper.Events.Player.Warped += PlayerWarped;
 
             helper.Events.Input.ButtonPressed += InputButtonPressed;
 
-            for (int i = 0; i < CategoryNames.Length; i++)
-            {
-                ItemsSold.Add(CategoryNames[i], new List<JsonItem>());
-            }
+            SetUp();
         }
 
         /******************
@@ -65,17 +62,13 @@ namespace EarningsTracker
         private int TrashEarnings = 0;
         private int UnknownEarnings = 0;
 
-        private bool HasSaveLoaded = false;
         private bool InShopMenu = false;
 
-
-
-
         // array must be of length 5
-        private readonly string[] CategoryNames = { "Farming", "Foraging", "Fishing", "Mining", "Other" };
+        private readonly Category[] CategoryNames = { "Farming", "Foraging", "Fishing", "Mining", "Other" };
 
         // we use jsonItem because sometimes we want to change the stack/qty value stored in item
-        private Dictionary<string, List<JsonItem>> ItemsSold = new Dictionary<string, List<JsonItem>>();
+        private readonly Dictionary<Category, List<JsonItem>> ItemsSold = new Dictionary<Category, List<JsonItem>>();
 
         /******************
         ** Event Handlers
@@ -89,9 +82,8 @@ namespace EarningsTracker
             Monitor.Log($"Old menu: {e.OldMenu?.GetType()?.ToString() ?? "null"}", LogLevel.Warn);
             Monitor.Log($"New menu: {e.NewMenu?.GetType()?.ToString() ?? "null"}", LogLevel.Warn);*/
 
-
-            if (!HasSaveLoaded) { return; }
-            
+            if (!Context.IsWorldReady) { return; }
+                
             if (e.NewMenu is StardewValley.Menus.ShopMenu)
             {
                 InShopMenu = true;
@@ -102,6 +94,7 @@ namespace EarningsTracker
             }
 
             if (Game1.player.totalMoneyEarned <= TotalTrackedEarnings) { return; }
+
             int newEarnings = Convert.ToInt32(Game1.player.totalMoneyEarned - TotalTrackedEarnings);
 
             if (e.OldMenu is StardewValley.Menus.GameMenu)
@@ -148,11 +141,6 @@ namespace EarningsTracker
             Helper.Data.WriteJsonFile(ModData.JsonPath(StardewModdingAPI.Constants.SaveFolderName), jsonDay);
         }
 
-        private void GameLoopReturnedToTitle(object sender, ReturnedToTitleEventArgs e)
-        {
-            HasSaveLoaded = false;
-        }
-
         private void GameLoopSaveLoaded(object sender, SaveLoadedEventArgs e)
         {
             var data = Helper.Data.ReadSaveData<ModData>(ModData.DataKey);
@@ -163,8 +151,6 @@ namespace EarningsTracker
                 Monitor.Log("====================", LogLevel.Warn);
                 Monitor.Log($"Save name: {data.SaveName}", LogLevel.Warn);
             }
-
-            HasSaveLoaded = true;
         }
 
         private void GameLoopSaving(object sender, SavingEventArgs e)
@@ -180,64 +166,21 @@ namespace EarningsTracker
             ParseInventoryChangedEvent(e);
         }
 
-        // dont need but doesn't hurt as a margin of safety?
-        private void PlayerWarped(object sender, WarpedEventArgs e)
-        {
-            TotalTrackedEarnings = Game1.player.totalMoneyEarned;
-        }
-
         /******************
         ** Private Methods
         ******************/
-        private JsonCategoryMap ParseShippingBin()
-        {
-            var items = Game1.getFarm().getShippingBin(Game1.player);
-            Utility.consolidateStacks(items);
 
-            var listMap = new Dictionary<string, List<JsonItem>>();
-            var categoryMap = new Dictionary<string, JsonItemList>();
+        private void SetUp()
+        {
+            // setup CategoryNames here in the future
 
             for (int i = 0; i < CategoryNames.Length; i++)
             {
-                listMap.Add(CategoryNames[i], new List<JsonItem>());
+                ItemsSold.Add(CategoryNames[i], new List<JsonItem>());
             }
-
-            foreach (Item item in (IEnumerable<Item>)items)
-            {
-                JsonItem jsonItem = new JsonItem(FullItemName(item), item.Stack, Utility.getSellToStorePriceOfItem(item));
-                listMap[GetCategoryNameForItem(item)].Add(jsonItem);
-            }
-
-            for (int i = 0; i < CategoryNames.Length; i++)
-            {
-                categoryMap.Add(CategoryNames[i], new JsonItemList(listMap[CategoryNames[i]]));
-            }
-
-            return new JsonCategoryMap(categoryMap);
         }
 
-        private JsonCategoryMap ParseStore()
-        {
-            var categoryMap = new Dictionary<string, JsonItemList>();
-
-            for (int i = 0; i < CategoryNames.Length; i++)
-            {
-                categoryMap.Add(CategoryNames[i], new JsonItemList(ItemsSold[CategoryNames[i]]));
-            }
-
-            return new JsonCategoryMap(categoryMap);
-        }
-
-
-        private JsonDay PackageDayData()
-        {
-            var shippingJson = ParseShippingBin();
-            var storeJson = ParseStore();
-
-            return new JsonDay(shippingJson, storeJson, AnimalEarnings, MailEarnings, QuestEarnings, TrashEarnings, UnknownEarnings);
-        }
-
-        private string GetCategoryNameForItem(Item item)
+        private Category GetCategoryNameForItem(Item item)
         {
             switch ((int)(NetFieldBase<int, NetInt>)item.parentSheetIndex)
             {
@@ -277,10 +220,10 @@ namespace EarningsTracker
             }
         }
 
-        private string GetCustomCategoryNameForItem(Item item)
+        private Category GetCustomCategoryNameForItem(Item item)
         {
             /* user provides a json that will be parsed into a 
-             * Dictionary<string (category name), List<string> (names of all the items that belong)>
+             * Dictionary<Category, List<item.name> (names of all the items that belong)>
              * 
              * code will generate a custom trie that stores the category name at each final node for more efficient lookup
              * trie will be generated when we first parse the config.json
@@ -289,6 +232,45 @@ namespace EarningsTracker
              */
 
             return "";
+        }
+
+        private JsonCategoryMap ParseShippingBin()
+        {
+            var items = Game1.getFarm().getShippingBin(Game1.player);
+            Utility.consolidateStacks(items);
+
+            var listMap = new Dictionary<Category, List<JsonItem>>();
+            var categoryMap = new Dictionary<Category, JsonItemList>();
+
+            for (int i = 0; i < CategoryNames.Length; i++)
+            {
+                listMap.Add(CategoryNames[i], new List<JsonItem>());
+            }
+
+            foreach (Item item in (IEnumerable<Item>)items)
+            {
+                JsonItem jsonItem = new JsonItem(FullItemName(item), item.Stack, Utility.getSellToStorePriceOfItem(item));
+                listMap[GetCategoryNameForItem(item)].Add(jsonItem);
+            }
+
+            for (int i = 0; i < CategoryNames.Length; i++)
+            {
+                categoryMap.Add(CategoryNames[i], new JsonItemList(listMap[CategoryNames[i]]));
+            }
+
+            return new JsonCategoryMap(categoryMap);
+        }
+
+        private JsonCategoryMap ParseStore()
+        {
+            var categoryMap = new Dictionary<Category, JsonItemList>();
+
+            for (int i = 0; i < CategoryNames.Length; i++)
+            {
+                categoryMap.Add(CategoryNames[i], new JsonItemList(ItemsSold[CategoryNames[i]]));
+            }
+
+            return new JsonCategoryMap(categoryMap);
         }
 
         private void ParseInventoryChangedEvent(InventoryChangedEventArgs e)
@@ -366,6 +348,14 @@ namespace EarningsTracker
             {
                 Monitor.Log("Unaccounted earnings from an item removed from inventory", LogLevel.Error);
             }
+        }
+
+        private JsonDay PackageDayData()
+        {
+            var shippingJson = ParseShippingBin();
+            var storeJson = ParseStore();
+
+            return new JsonDay(shippingJson, storeJson, AnimalEarnings, MailEarnings, QuestEarnings, TrashEarnings, UnknownEarnings);
         }
 
         /******************
