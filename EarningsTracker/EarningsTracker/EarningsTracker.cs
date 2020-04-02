@@ -1,4 +1,3 @@
-﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Netcode;
@@ -16,8 +15,9 @@ namespace EarningsTracker
             helper.Events.Display.MenuChanged += DisplayMenuChanged;
             helper.Events.GameLoop.DayStarted += GameLoopDayStarted;
             helper.Events.GameLoop.DayEnding += GameLoopDayEnding;
-            helper.Events.GameLoop.SaveLoaded += GameLoopSaveLoaded;
             helper.Events.GameLoop.ReturnedToTitle += GameLoopReturnedToTitle;
+            helper.Events.GameLoop.SaveLoaded += GameLoopSaveLoaded;
+            helper.Events.GameLoop.Saving += GameLoopSaving;
             helper.Events.Player.InventoryChanged += PlayerInventoryChanged;
             helper.Events.Player.Warped += PlayerWarped;
 
@@ -139,7 +139,22 @@ namespace EarningsTracker
 
         private void GameLoopSaveLoaded(object sender, SaveLoadedEventArgs e)
         {
+            var data = Helper.Data.ReadSaveData<ModData>(ModData.DataKey);
+            if (data != null)
+            {
+                Monitor.Log("====================", LogLevel.Warn);
+                Monitor.Log("Save Data Loaded", LogLevel.Warn);
+                Monitor.Log("====================", LogLevel.Warn);
+                Monitor.Log($"Save name: {data.SaveName}", LogLevel.Warn);
+            }
+
             HasSaveLoaded = true;
+        }
+
+        private void GameLoopSaving(object sender, SavingEventArgs e)
+        {
+            var data = new ModData(StardewModdingAPI.Constants.SaveFolderName);
+            Helper.Data.WriteSaveData(ModData.DataKey, data);
         }
 
         private void PlayerInventoryChanged(object sender, InventoryChangedEventArgs e)
