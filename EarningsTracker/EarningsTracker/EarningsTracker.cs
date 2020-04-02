@@ -1,3 +1,4 @@
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Netcode;
@@ -55,6 +56,10 @@ namespace EarningsTracker
         private uint CurrentEarnings = 0;
         private bool HasSaveLoaded = false;
         private bool InShopMenu = false;
+
+
+        // array must be of length 5
+        private string[] CategoryNames = { "Farming", "Foraging", "Fishing", "Mining", "Other" };
 
         /******************
         ** Event Handlers
@@ -154,6 +159,7 @@ namespace EarningsTracker
         private void GameLoopSaving(object sender, SavingEventArgs e)
         {
             var data = new ModData(StardewModdingAPI.Constants.SaveFolderName);
+            // Helper.Data.WriteJsonFile(ModData.JsonPath(StardewModdingAPI.Constants.SaveFolderName), data);
             Helper.Data.WriteSaveData(ModData.DataKey, data);
         }
 
@@ -173,56 +179,49 @@ namespace EarningsTracker
         /******************
         ** Private Methods
         ******************/
-
         private void ParseShippingBin()
         {
             if (Game1.getFarm().getShippingBin(Game1.player).Count <= 0) { return; }
 
             var items = Game1.getFarm().getShippingBin(Game1.player);
-            var itemValues = new Dictionary<Item, int>();
-            var categoryItems = new List<List<Item>>();
-            var categoryTotals = new List<int>();
-            
             Utility.consolidateStacks(items);
 
-            for (int i = 0; i < 5; i++)
+            var listMap = new Dictionary<string, List<JsonItem>>();
+            var categoryMap = new Dictionary<string, JsonItemCategory>();
+
+            for (int i = 0; i < CategoryNames.Length; i++)
             {
-                categoryItems.Add(new List<Item>());
-                categoryTotals.Add(0);
+                listMap.Add(CategoryNames[i], new List<JsonItem>());
             }
 
-            foreach (Item item in (IEnumerable<Item>) items)
+            foreach (Item item in (IEnumerable<Item>)items)
             {
-                if (item is StardewValley.Object)
-                {
-                    StardewValley.Object obj = item as StardewValley.Object;
-                    int categoryIndexForObject = getCategoryIndexForObject(obj);
-                    int value = Utility.getSellToStorePriceOfItem(item);
-
-                    categoryItems[categoryIndexForObject].Add(item);
-                    categoryTotals[categoryIndexForObject] += value;
-                    itemValues.Add(item, value);
-                }
+                JsonItem jsonItem = new JsonItem(item.Name, item.Stack, Utility.getSellToStorePriceOfItem(item));
+                listMap[GetCategoryNameForItem(item)].Add(jsonItem);
             }
 
-            uint binTotal = (uint)categoryTotals.Aggregate(0, (acc, x) => acc + x);
-            CurrentEarnings += binTotal;
+            for (int i = 0; i < CategoryNames.Length; i++)
+            {
+                categoryMap.Add(CategoryNames[i], new JsonItemCategory(listMap[CategoryNames[i]]));
+            }
+
+            JsonCategoryMap jsonShipping = new JsonCategoryMap(categoryMap);
+            Helper.Data.WriteJsonFile(ModData.JsonPath(StardewModdingAPI.Constants.SaveFolderName), jsonShipping);
 
             Monitor.Log("====================", LogLevel.Warn);
             Monitor.Log("Parsing Shipping Bin", LogLevel.Warn);
             Monitor.Log("====================", LogLevel.Warn);
-            Monitor.Log($"Farming: {categoryTotals[0]}", LogLevel.Warn);
-            Monitor.Log($"Foraging: {categoryTotals[1]}", LogLevel.Warn);
-            Monitor.Log($"Fishing: {categoryTotals[2]}", LogLevel.Warn);
-            Monitor.Log($"Mining: {categoryTotals[3]}", LogLevel.Warn);
-            Monitor.Log($"Other: {categoryTotals[4]}", LogLevel.Warn);
-            Monitor.Log($"Total: {binTotal}", LogLevel.Warn);
-
+            Monitor.Log($"Farming: {jsonShipping.Categories["Farming"].Total}", LogLevel.Warn);
+            Monitor.Log($"Foraging: {jsonShipping.Categories["Foraging"].Total}", LogLevel.Warn);
+            Monitor.Log($"Fishing: {jsonShipping.Categories["Fishing"].Total}", LogLevel.Warn);
+            Monitor.Log($"Mining: {jsonShipping.Categories["Mining"].Total}", LogLevel.Warn);
+            Monitor.Log($"Other: {jsonShipping.Categories["Other"].Total}", LogLevel.Warn);
+            Monitor.Log($"Total: {jsonShipping.Total}", LogLevel.Warn);
         }
 
-        private int getCategoryIndexForObject(StardewValley.Object obj)
+        private string GetCategoryNameForItem(Item item)
         {
-            switch ((int)(NetFieldBase<int, NetInt>)obj.parentSheetIndex)
+            switch ((int)(NetFieldBase<int, NetInt>)item.parentSheetIndex)
             {
                 case 296:
                 case 396:
@@ -231,14 +230,14 @@ namespace EarningsTracker
                 case 410:
                 case 414:
                 case 418:
-                    return 1;
+                    return CategoryNames[1];
                 default:
-                    switch (obj.Category)
+                    switch (item.Category)
                     {
                         case -81:
                         case -27:
                         case -23:
-                            return 1;
+                            return CategoryNames[1];
                         case -80:
                         case -79:
                         case -75:
@@ -246,18 +245,32 @@ namespace EarningsTracker
                         case -14:
                         case -6:
                         case -5:
-                            return 0;
+                            return CategoryNames[0];
                         case -20:
                         case -4:
-                            return 2;
+                            return CategoryNames[2];
                         case -15:
                         case -12:
                         case -2:
-                            return 3;
+                            return CategoryNames[3];
                         default:
-                            return 4;
+                            return CategoryNames[4];
                     }
             }
+        }
+
+        private string GetCustomCategoryNameForItem(Item item)
+        {
+            /* user provides a json that will be parsed into a 
+             * Dictionary<string (category name), List<string> (names of all the items that belong)>
+             * 
+             * code will generate a custom trie that stores the category name at each final node for more efficient lookup
+             * trie will be generated when we first parse the config.json
+             * 
+             * this function will just use the trie to return the category name
+             */
+
+            return "";
         }
 
         private void ParseInventoryChangedEvent(InventoryChangedEventArgs e)
