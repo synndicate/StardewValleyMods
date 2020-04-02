@@ -67,7 +67,15 @@ namespace EarningsTracker
         public JsonCategoryMap(Dictionary<Category, JsonItemList> categories)
         {
             Categories = categories;
-            Total = categories.Values.Aggregate(0, (acc, x) => acc + x.Total);
+            Total = Categories.Values.Aggregate(0, (acc, x) => acc + x.Total);
+        }
+
+        public JsonCategoryMap(Dictionary<Category, List<JsonItem>> categories)
+        {
+            Categories = categories
+                .Select(i => new KeyValuePair<Category, JsonItemList>(i.Key, new JsonItemList(i.Value)))
+                .ToDictionary(i => i.Key, i => i.Value);
+            Total = Categories.Values.Aggregate(0, (acc, x) => acc + x.Total);
         }
     }
 
