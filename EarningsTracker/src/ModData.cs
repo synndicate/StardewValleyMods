@@ -79,8 +79,8 @@ namespace EarningsTracker
     public sealed class JsonDay
     {
         public readonly int Total;
-        public readonly JsonCategoryMap;
-        public readonly JsonCategoryMap;
+        public readonly JsonCategoryMap Shipped;
+        public readonly JsonCategoryMap Store;
         public readonly int Animals;
         public readonly int Mail;
         public readonly int Quest;
