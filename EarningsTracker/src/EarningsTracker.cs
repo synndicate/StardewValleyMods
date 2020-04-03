@@ -1,168 +1,216 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using Harmony;
-using Netcode;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewModdingAPI.Utilities;
 using StardewValley;
 
-
 namespace EarningsTracker
 {
-    using Category = String;
+    using SItem = StardewValley.Item;
 
-    public sealed class EarningsTracker : Mod
+    public class EarningsTracker
     {
+        /******************
+        ** Public Fields
+        ******************/
+        public uint TotalTrackedEarnings { get; private set; }
+
         /******************
         ** Private Fields
         ******************/
 
-        private ModConfig Config;
-        private DataManager DataManager;
-        private bool InShopMenu = false;
+        private readonly IMonitor Monitor; // for logging
 
+        private readonly List<string> Categories;
+        private readonly Dictionary<int, string> SIdMap;
+        private readonly Dictionary<int, string> SCategoryMap;
+
+        private readonly List<SItem> ItemsSold;
+
+        private int AnimalEarnings = 0;
+        private int MailEarnings = 0;
+        private int QuestEarnings = 0;
+        private int TrashEarnings = 0;
+        private int UnknownEarnings = 0;
+
+
+        /******************
+        ** Constructor
+        ******************/
+
+        public EarningsTracker(Farmer mainPlayer, ModConfig config, IMonitor monitor)
+        {
+            Monitor = monitor;
+
+            var categoryDefines = config.UseCustomCategories ? config.CustomCategories : config.VanillaCategories;
+
+            Categories = categoryDefines.Keys.ToList();
+
+            SIdMap = categoryDefines
+                .Select(d => new KeyValuePair<string, List<int>>(d.Key, d.Value?["itemIDs"] ?? new List<int>()))
+                .SelectMany(p => p.Value.Select(i => new Tuple<int, string>(i, p.Key)))
+                .ToDictionary(t => t.Item1, t => t.Item2);
+
+            SCategoryMap = categoryDefines
+                .Select(d => new KeyValuePair<string, List<int>>(d.Key, d.Value?["objectCategories"] ?? new List<int>()))
+                .SelectMany(f => f.Value.Select(s => new Tuple<int, string>(s, f.Key)))
+                .ToDictionary(t => t.Item1, t => t.Item2);
+
+            TotalTrackedEarnings = 0;
+            ItemsSold = new List<SItem>();
+        }
 
         /******************
         ** Public Methods
         ******************/
 
-        public override void Entry(IModHelper helper)
+        public void AddItemSoldEvent(Farmer player, IEnumerable<SItem> items)
         {
-            Config = Helper.ReadConfig<ModConfig>();
-            DataManager = new DataManager(Game1.MasterPlayer, Config, Monitor);
-
-            helper.Events.Display.MenuChanged += DisplayMenuChanged;
-            helper.Events.GameLoop.DayStarted += GameLoopDayStarted;
-            helper.Events.GameLoop.DayEnding += GameLoopDayEnding;
-            helper.Events.GameLoop.SaveLoaded += GameLoopSaveLoaded;
-            helper.Events.GameLoop.Saving += GameLoopSaving;
-            helper.Events.Player.InventoryChanged += PlayerInventoryChanged;
-
-            helper.Events.Input.ButtonPressed += InputButtonPressed;
-
-            CategoryPatch.Initialize(Config, Monitor);
-
-            var harmony = HarmonyInstance.Create(this.ModManifest.UniqueID);
-            harmony.Patch(
-                original: AccessTools.Method(typeof(StardewValley.Menus.ShippingMenu), nameof(StardewValley.Menus.ShippingMenu.getCategoryIndexForObject)),
-                postfix: new HarmonyMethod(typeof(CategoryPatch), nameof(CategoryPatch.MyHarmony_Postfix)));
+            ItemsSold.AddRange(items);
+            UpdateTrackedEarnings(player);
         }
 
+        public void AddItemSoldEvent(Farmer player, IEnumerable<ItemStackSizeChange> itemsSold)
+        {
+            AddItemSoldEvent(player, itemsSold
+                .Select(change => { change.Item.Stack = change.OldSize - change.NewSize; return change.Item; }));
+        }
+
+        public void AddAnimalEarning(Farmer player)
+        {
+            Monitor.Log($"Earned {player.totalMoneyEarned - TotalTrackedEarnings}g from selling an animal", LogLevel.Warn);
+            AnimalEarnings += Convert.ToInt32(player.totalMoneyEarned - TotalTrackedEarnings);
+            UpdateTrackedEarnings(player);
+        }
+        public void AddMailEarning(Farmer player)
+        {
+            Monitor.Log($"Earned {player.totalMoneyEarned - TotalTrackedEarnings}g from mail attachment", LogLevel.Warn);
+            MailEarnings += Convert.ToInt32(player.totalMoneyEarned - TotalTrackedEarnings);
+            UpdateTrackedEarnings(player);
+        }
+        public void AddQuestEarning(Farmer player)
+        {
+            Monitor.Log($"Earned {player.totalMoneyEarned - TotalTrackedEarnings}g from quest reward", LogLevel.Warn);
+            QuestEarnings += Convert.ToInt32(player.totalMoneyEarned - TotalTrackedEarnings);
+            UpdateTrackedEarnings(player);
+        }
+        public void AddTrashEarning(Farmer player)
+        {
+            Monitor.Log($"Earned {player.totalMoneyEarned - TotalTrackedEarnings}g from reclaiming trash", LogLevel.Warn);
+            TrashEarnings += Convert.ToInt32(player.totalMoneyEarned - TotalTrackedEarnings);
+            UpdateTrackedEarnings(player);
+        }
+        public void AddUnknownEarning(Farmer player)
+        {
+            Monitor.Log($"Earned {player.totalMoneyEarned - TotalTrackedEarnings}g from unknown source", LogLevel.Error);
+            UnknownEarnings += Convert.ToInt32(player.totalMoneyEarned - TotalTrackedEarnings);
+            UpdateTrackedEarnings(player);
+        }
+        public void UpdateTrackedEarnings(Farmer player) 
+        {
+            TotalTrackedEarnings = player.totalMoneyEarned;
+        }
+
+        public JsonDay PackageDayData(Farmer player)
+        {
+            var shippingBin = Game1.getFarm().getShippingBin(player);
+
+            Utility.consolidateStacks(shippingBin);
+            Utility.consolidateStacks(ItemsSold);
+
+            return new JsonDay(new Day(TodayAsString(), TodayAsIndex(), CategorizeItems(shippingBin), CategorizeItems(ItemsSold), 
+                                        AnimalEarnings, MailEarnings, QuestEarnings, TrashEarnings, UnknownEarnings));
+        }
 
         /******************
-        ** temp debugging methods
+        ** Private Methods
         ******************/
 
-        private void InputButtonPressed(object sender, ButtonPressedEventArgs e)
+        private Dictionary<string, IEnumerable<Item>> CategorizeItems(IEnumerable<SItem> items)
         {
-            if (!Context.IsWorldReady)
-                return;
+            return items
+                .Select(i => new KeyValuePair<string, Item>(GetCategoryForItem(i), new Item(FullItemName(i), i.Stack, Utility.getSellToStorePriceOfItem(i))))
+                .GroupBy(p => p.Key, p => p.Value)
+                .ToDictionary(g => g.Key, g => (IEnumerable<Item>)g);
+        }
 
-            if (e.Button == SButton.J)
+        private string GetCategoryForItem(SItem item)
+        {
+            if (SIdMap.ContainsKey(item.ParentSheetIndex))
             {
-                NetCollection<Item> bin = Game1.getFarm().getShippingBin(Game1.player);
-                int binTotal = 0;
+                return SIdMap[item.ParentSheetIndex];
+            }
+            else if (SCategoryMap.ContainsKey(item.Category))
+            {
+                return SCategoryMap[item.Category];
+            }
+            else
+            {
+                return "Other";
+            }
+        }
 
-                foreach (Item item in bin)
+        private string GetCustomCategoryNameForItem(SItem item)
+        {
+            /* user provides a json that will be parsed into a 
+             * Dictionary<Category, List<item.name> (names of all the items that belong)>
+             * 
+             * code will generate a custom trie that stores the category name at each final node for more efficient lookup
+             * trie will be generated when we first parse the config.json
+             * 
+             * this function will just use the trie to return the category name
+             */
+
+            return "";
+        }
+
+        private string FullItemName(SItem item)
+        {
+            if (item is StardewValley.Object)
+            {
+                var obj = item as StardewValley.Object;
+
+                switch (obj.quality.Value)
                 {
-                    binTotal += Utility.getSellToStorePriceOfItem(item);
+                    case 0:
+                        return obj.DisplayName;
+                    case 1:
+                        return obj.DisplayName + " (Silver)";
+                    case 2:
+                        return obj.DisplayName + " (Gold)";
+                    case 4:
+                        return obj.DisplayName + " (Iridium)";
+                    default:
+                        return obj.DisplayName + " (Unknown)";
                 }
-
-                Monitor.Log($"Current Bin Total: {binTotal}", LogLevel.Warn);
-                Game1.addHUDMessage(new HUDMessage($"Bin Total: {binTotal}", 2));
             }
-        }
-
-        /******************
-        ** Event Handlers
-        ******************/
-
-        private void DisplayMenuChanged(object sender, MenuChangedEventArgs e)
-        {
-            /*Monitor.Log("====================", LogLevel.Warn);
-            Monitor.Log("Display Menu Changed", LogLevel.Warn);
-            Monitor.Log("====================", LogLevel.Warn);
-            Monitor.Log($"\tOld menu: {e.OldMenu?.GetType()?.ToString() ?? "null"}", LogLevel.Warn);
-            Monitor.Log($"\tNew menu: {e.NewMenu?.GetType()?.ToString() ?? "null"}", LogLevel.Warn);*/
-
-            if (!Context.IsWorldReady) { return; }
-                
-            if (e.NewMenu is StardewValley.Menus.ShopMenu)
+            else
             {
-                InShopMenu = true;
-            }
-            else if (e.OldMenu is StardewValley.Menus.ShopMenu)
-            {
-                InShopMenu = false;
-            }
-
-            if (Game1.player.totalMoneyEarned <= DataManager.TotalTrackedEarnings) { return; }
-
-            if (e.OldMenu is StardewValley.Menus.GameMenu) { DataManager.AddTrashEarning(Game1.player); }
-            else if (e.OldMenu is StardewValley.Menus.QuestLog) { DataManager.AddQuestEarning(Game1.player); }
-            else if (e.OldMenu is StardewValley.Menus.AnimalQueryMenu) { DataManager.AddAnimalEarning(Game1.player); }
-            else if (e.NewMenu is StardewValley.Menus.LetterViewerMenu) { DataManager.AddMailEarning(Game1.player); }
-            else { DataManager.AddUnknownEarning(Game1.player); }
-        }
-
-        private void GameLoopDayStarted(object sender, DayStartedEventArgs e)
-        {
-            Monitor.Log("====================", LogLevel.Warn);
-            Monitor.Log($"Day Started - {TodayAsString()}", LogLevel.Warn);
-            Monitor.Log($"\tCurrent Earnings: {Game1.player.totalMoneyEarned}", LogLevel.Warn);
-            Monitor.Log("====================", LogLevel.Warn);
-
-            DataManager.UpdateTrackedEarnings(Game1.player);
-        }
-
-        private void GameLoopDayEnding(object sender, DayEndingEventArgs e)
-        {
-            // Game clears shipping bin if done later
-            Helper.Data.WriteJsonFile(ModData.JsonPath(StardewModdingAPI.Constants.SaveFolderName), DataManager.PackageDayData(Game1.player));
-        }
-
-        private void GameLoopSaveLoaded(object sender, SaveLoadedEventArgs e)
-        {
-            var data = Helper.Data.ReadSaveData<ModData>(ModData.DataKey);
-            if (data != null)
-            {
-                Monitor.Log("====================", LogLevel.Warn);
-                Monitor.Log("Save Data Loaded", LogLevel.Warn);
-                Monitor.Log("====================", LogLevel.Warn);
-                Monitor.Log($"Save name: {data.SaveName}", LogLevel.Warn);
-                // pass to data manager in future
+                return item.DisplayName;
             }
         }
-
-        private void GameLoopSaving(object sender, SavingEventArgs e)
-        {
-            var data = new ModData(StardewModdingAPI.Constants.SaveFolderName); // get this from data manager in future
-            Helper.Data.WriteSaveData(ModData.DataKey, data);
-        }
-
-        private void PlayerInventoryChanged(object sender, InventoryChangedEventArgs e)
-        {
-            if (!e.IsLocalPlayer) { return; }
-            if (!InShopMenu) { return; }
-            if (Game1.player.totalMoneyEarned <= DataManager.TotalTrackedEarnings) { return; }
-
-            if (e.Removed.Count() > 0) { DataManager.AddItemSoldEvent(Game1.player, e.Removed); }
-            else if (e.QuantityChanged.Count() > 0) { DataManager.AddItemSoldEvent(Game1.player, e.QuantityChanged); }
-            else { Monitor.Log("Unaccounted earnings from an item removed from inventory", LogLevel.Error); }
-        }
-
-        /******************
-        ** Utility Methods
-        ******************/
 
         private string TodayAsString()
         {
             // Y1 Summer - Day 1 (Monday)
-            SDate today = SDate.Now();
+            var today = SDate.Now();
             return $"Y{today.Year} {today.Season.First().ToString().ToUpper() + today.Season.Substring(1)} - Day {today.Day} ({today.DayOfWeek})";
         }
 
+        private int TodayAsIndex()
+        {
+            var today = SDate.Now();
+            var seasonIndex = new Dictionary<string, int> 
+            {
+                { "spring", 0 },
+                { "summer", 1 },
+                { "fall"  , 2 },
+                { "winter", 3 }
+            };
+
+            return (today.Year - 1) * (28 * 4) + seasonIndex[today.Season] * 28 + today.Day;
+        }
     }
 }

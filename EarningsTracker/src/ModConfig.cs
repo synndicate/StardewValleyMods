@@ -1,13 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace EarningsTracker
 {
     public sealed class ModConfig
     {
+        public bool UseCustomCategories = false;
         public Dictionary<string, Dictionary<string, List<int>>> VanillaCategories;
         public Dictionary<string, Dictionary<string, List<int>>> CustomCategories;
 

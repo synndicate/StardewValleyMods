@@ -4,8 +4,6 @@ using System.Linq;
 
 namespace EarningsTracker
 {
-    using Category = String;
-
     public sealed class ModData
     {
         public const string DataKey = "ModData";
@@ -24,63 +22,34 @@ namespace EarningsTracker
         }
     }
 
-    public sealed class JsonItem
-    {
-        public readonly string Name;
-        public readonly int Stack;
-        public readonly int Value;
-
-        private JsonItem() { }
-
-        public JsonItem(string name, int stack, int value) 
-        {
-            Name = name;
-            Stack = stack;
-            Value = value;
-        }
-    }
-
-    public sealed class JsonItemList // list + total
+    public sealed class JsonCategorizedItems
     {
         public readonly int Total;
-        public readonly List<JsonItem> Items;
+        public readonly Dictionary<string, IEnumerable<Item>> ItemsByCategory;
 
-        private JsonItemList() { }
+        private JsonCategorizedItems() { }
 
-        public JsonItemList(List<JsonItem> items)
+        public JsonCategorizedItems(Dictionary<string, IEnumerable<Item>> itemsByCategory)
         {
-            Items = items;
-            Total = Items.Aggregate(0, (acc, x) => acc + x.Value);
-        }
-    }
-
-    public sealed class JsonCategoryMap // maps categories 
-    {
-        public readonly int Total;
-        public readonly Dictionary<Category, JsonItemList> Categories;
-
-        public JsonCategoryMap() { }
-
-        public JsonCategoryMap(Dictionary<Category, JsonItemList> categories)
-        {
-            Categories = categories;
-            Total = Categories.Values.Aggregate(0, (acc, x) => acc + x.Total);
+            ItemsByCategory = itemsByCategory;
+            Total = ItemsByCategory.Values
+                .SelectMany(x => x)
+                .Aggregate(0, (acc, x) => acc + x.Value);
         }
 
-        public JsonCategoryMap(Dictionary<Category, List<JsonItem>> categories)
-        {
-            Categories = categories
-                .Select(i => new KeyValuePair<Category, JsonItemList>(i.Key, new JsonItemList(i.Value)))
-                .ToDictionary(i => i.Key, i => i.Value);
-            Total = Categories.Values.Aggregate(0, (acc, x) => acc + x.Total);
-        }
+        public static JsonCategorizedItems operator +(JsonCategorizedItems l, JsonCategorizedItems r)
+            => new JsonCategorizedItems(l.ItemsByCategory
+                .Concat(r.ItemsByCategory)
+                .GroupBy(p => p.Key, p => p.Value)
+                .ToDictionary(k => k.Key, v => v.Aggregate((acc, x) => acc.Concat(x))));
     }
 
     public sealed class JsonDay
     {
+        public readonly string Date;
         public readonly int Total;
-        public readonly JsonCategoryMap Shipped;
-        public readonly JsonCategoryMap Store;
+        public readonly JsonCategorizedItems Shipped;
+        public readonly JsonCategorizedItems Store;
         public readonly int Animals;
         public readonly int Mail;
         public readonly int Quests;
@@ -89,81 +58,60 @@ namespace EarningsTracker
 
         private JsonDay() { }
 
-        public JsonDay(JsonCategoryMap shipped, JsonCategoryMap store, int animals, int mail, int quests, int trash, int unknown)
+        public JsonDay(Day day)
         {
-            Shipped = shipped;
-            Store = store;
-            Animals = animals;
-            Mail = mail;
-            Quests = quests;
-            Trash = trash;
-            Unknown = unknown;
+            Date = day.Date;
+            Shipped = new JsonCategorizedItems(day.Shipped);
+            Store = new JsonCategorizedItems(day.Store);
+            Animals = day.Animals;
+            Mail = day.Mail;
+            Quests = day.Quests;
+            Trash = day.Trash;
+            Unknown = day.Unknown;
 
-            Total = Shipped.Total + Store.Total + Animals + Mail + Quests + Trash + Unknown;
+            var shippedTotal = day.Shipped.Values
+                .SelectMany(x => x)
+                .Aggregate(0, (acc, x) => acc + x.Value);
+
+            var storeTotal = day.Store.Values
+                .SelectMany(x => x)
+                .Aggregate(0, (acc, x) => acc + x.Value);
+
+            Total = shippedTotal + storeTotal + Animals + Mail + Quests + Trash + Unknown;
         }
     }
 
     public sealed class JsonWeek
     {
         public readonly int Total;
-        public readonly JsonCategoryMap Shipped;
-        public readonly JsonCategoryMap Store;
+        public readonly JsonCategorizedItems Shipped;
+        public readonly JsonCategorizedItems Store;
         public readonly int Animals;
         public readonly int Mail;
         public readonly int Quests;
         public readonly int Trash;
         public readonly int Unknown;
-        public readonly List<JsonDay> Days;
+        public readonly Dictionary<int, JsonDay> Days;
 
-        public JsonWeek() { } // change to private 
+        public JsonWeek() { } // change to private after testing
 
-        public JsonWeek(List<JsonDay> days)
+        public JsonWeek(Dictionary<int, JsonDay> days)
         {
-            var totalShipped = Days
-                .Select(d => d.Shipped.Categories)
-                .Aggregate((acc, d) => 
-                {
-                    foreach (Category c in d.Keys)
-                    {
-                        if (acc.ContainsKey(c))
-                        {
-                            acc[c].Items.AddRange(d[c].Items);
-                        }
-                        else
-                        {
-                            acc.Add(c, d[c]);
-                        }
-                    }
+            var dayValues = days.Select(d => d.Value);
 
-                    return acc;
-                });
-            Shipped = new JsonCategoryMap(totalShipped);
+            Shipped = dayValues
+                .Select(d => d.Shipped)
+                .Aggregate((acc, x) => acc + x);
 
-            var totalStore = Days
-                .Select(d => d.Shipped.Categories)
-                .Aggregate((acc, d) =>
-                {
-                    foreach (Category c in d.Keys)
-                    {
-                        if (acc.ContainsKey(c))
-                        {
-                            acc[c].Items.AddRange(d[c].Items);
-                        }
-                        else
-                        {
-                            acc.Add(c, d[c]);
-                        }
-                    }
+            Store = dayValues
+                .Select(d => d.Store)
+                .Aggregate((acc, x) => acc + x);
 
-                    return acc;
-                });
-            Store = new JsonCategoryMap(totalStore);
-
-            Animals = days.Aggregate(0, (acc, d) => acc + d.Animals);
-            Mail = days.Aggregate(0, (acc, d) => acc + d.Mail);
-            Quests = days.Aggregate(0, (acc, d) => acc + d.Quests);
-            Trash = days.Aggregate(0, (acc, d) => acc + d.Trash);
-            Unknown = days.Aggregate(0, (acc, d) => acc + d.Unknown);
+            Animals = dayValues.Aggregate(0, (acc, d) => acc + d.Animals);
+            Mail = dayValues.Aggregate(0, (acc, d) => acc + d.Mail);
+            Quests = dayValues.Aggregate(0, (acc, d) => acc + d.Quests);
+            Trash = dayValues.Aggregate(0, (acc, d) => acc + d.Trash);
+            Unknown = dayValues.Aggregate(0, (acc, d) => acc + d.Unknown);
 
             Total = Shipped.Total + Store.Total + Animals + Mail + Quests + Trash + Unknown;
         }
