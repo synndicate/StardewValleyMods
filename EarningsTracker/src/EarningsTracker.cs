@@ -22,10 +22,7 @@ namespace EarningsTracker
         ******************/
 
         private readonly IMonitor Monitor; // for logging
-
-        private readonly List<string> Categories;
-        private readonly Dictionary<int, string> SIdMap;
-        private readonly Dictionary<int, string> SCategoryMap;
+        private readonly ModConfig Config;
 
         private readonly List<SItem> ItemsSold;
 
@@ -43,21 +40,7 @@ namespace EarningsTracker
         public EarningsTracker(Farmer mainPlayer, ModConfig config, IMonitor monitor)
         {
             Monitor = monitor;
-
-            var categoryDefines = config.UseCustomCategories ? config.CustomCategories : config.VanillaCategories;
-
-            Categories = categoryDefines.Keys.ToList();
-
-            SIdMap = categoryDefines
-                .Select(d => new KeyValuePair<string, List<int>>(d.Key, d.Value?["itemIDs"] ?? new List<int>()))
-                .SelectMany(p => p.Value.Select(i => new Tuple<int, string>(i, p.Key)))
-                .ToDictionary(t => t.Item1, t => t.Item2);
-
-            SCategoryMap = categoryDefines
-                .Select(d => new KeyValuePair<string, List<int>>(d.Key, d.Value?["objectCategories"] ?? new List<int>()))
-                .SelectMany(f => f.Value.Select(s => new Tuple<int, string>(s, f.Key)))
-                .ToDictionary(t => t.Item1, t => t.Item2);
-
+            Config = config;
             TotalTrackedEarnings = 0;
             ItemsSold = new List<SItem>();
         }
@@ -138,13 +121,16 @@ namespace EarningsTracker
 
         private string GetCategoryForItem(SItem item)
         {
-            if (SIdMap.ContainsKey(item.ParentSheetIndex))
+            var sIDMap = Config.ItemIDMap();
+            var sCategoryMap = Config.ObjectCategoryMap();
+
+            if (sIDMap.ContainsKey(item.ParentSheetIndex))
             {
-                return SIdMap[item.ParentSheetIndex];
+                return sIDMap[item.ParentSheetIndex];
             }
-            else if (SCategoryMap.ContainsKey(item.Category))
+            else if (sCategoryMap.ContainsKey(item.Category))
             {
-                return SCategoryMap[item.Category];
+                return sCategoryMap[item.Category];
             }
             else
             {

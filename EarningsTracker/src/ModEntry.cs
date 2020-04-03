@@ -15,7 +15,6 @@ namespace EarningsTracker
         ** Private Fields
         ******************/
 
-        private ModConfig Config;
         private EarningsTracker EarningsTracker;
         private bool InShopMenu = false;
 
@@ -26,8 +25,9 @@ namespace EarningsTracker
 
         public override void Entry(IModHelper helper)
         {
-            Config = Helper.ReadConfig<ModConfig>();
-            EarningsTracker = new EarningsTracker(Game1.MasterPlayer, Config, Monitor);
+            var config = Helper.ReadConfig<ModConfig>();
+            CheckConfig(config);
+            EarningsTracker = new EarningsTracker(Game1.MasterPlayer, config, Monitor);
 
             helper.Events.Display.MenuChanged += DisplayMenuChanged;
             helper.Events.GameLoop.DayStarted += GameLoopDayStarted;
@@ -37,12 +37,28 @@ namespace EarningsTracker
             helper.Events.Input.ButtonPressed += InputButtonPressed;
             helper.Events.Player.InventoryChanged += PlayerInventoryChanged;
 
-            HarmonyCategoryPatch.Initialize(Config);
+            HarmonyCategoryPatch.Initialize(config);
 
             var harmony = HarmonyInstance.Create(this.ModManifest.UniqueID);
             harmony.Patch(
                 original: AccessTools.Method(typeof(StardewValley.Menus.ShippingMenu), nameof(StardewValley.Menus.ShippingMenu.getCategoryIndexForObject)),
                 postfix: new HarmonyMethod(typeof(HarmonyCategoryPatch), nameof(HarmonyCategoryPatch.GetCategoryIndex_Postfix)));
+        }
+
+        private void CheckConfig(ModConfig config)
+        {
+            try
+            {
+                config.ItemIDMap();
+                config.ObjectCategoryMap();
+            }
+            catch (InvalidOperationException)
+            {
+                Monitor.Log($"config.json failed to load", LogLevel.Error);
+                throw;
+            }
+            
+            Monitor.Log($"config.json loaded with {config.CategoryNames().Count()} categories", LogLevel.Trace);
         }
 
         /******************

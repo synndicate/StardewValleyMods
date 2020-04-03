@@ -87,5 +87,44 @@ namespace EarningsTracker
                 }
             };
         }
+
+        public List<string> CategoryNames()
+        {
+            return (UseCustomCategories ? CustomCategories : VanillaCategories).Keys.ToList();
+        }
+
+        public Dictionary<int, string> ItemIDMap()
+        {
+            var map = (UseCustomCategories ? CustomCategories : VanillaCategories)
+                .Select(d => new KeyValuePair<string, List<int>>(d.Key, d.Value?["itemIDs"] ?? new List<int>()))
+                .SelectMany(p => p.Value.Select(i => new Tuple<int, string>(i, p.Key)));
+
+            var duplicates = map.GroupBy(x => x.Item1).Where(g => g.Count() > 1).ToList();
+            if (duplicates.Count() > 0)
+            {
+                throw new InvalidOperationException($"[config.json]: ItemID {duplicates.First().Key} is listed in more than 1 category");
+            }
+            else
+            {
+                return map.ToDictionary(t => t.Item1, t => t.Item2);
+            }
+        }
+
+        public Dictionary<int, string> ObjectCategoryMap()
+        {
+            var map = (UseCustomCategories ? CustomCategories : VanillaCategories)
+                .Select(d => new KeyValuePair<string, List<int>>(d.Key, d.Value?["objectCategories"] ?? new List<int>()))
+                .SelectMany(p => p.Value.Select(i => new Tuple<int, string>(i, p.Key)));
+
+            var duplicates = map.GroupBy(x => x.Item1).Where(g => g.Count() > 1).ToList();
+            if (duplicates.Count() > 0)
+            {
+                throw new InvalidOperationException($"[config.json]: Object Category {duplicates.First().Key} is listed in more than 1 category");
+            }
+            else
+            {
+                return map.ToDictionary(t => t.Item1, t => t.Item2);
+            }
+        }
     }
 }
