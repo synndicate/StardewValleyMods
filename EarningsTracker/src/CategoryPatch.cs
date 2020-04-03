@@ -1,27 +1,73 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using StardewModdingAPI;
-using StardewValley.Menus;
-using Harmony;
 
 namespace EarningsTracker
 {
     public class CategoryPatch
     {
         private static IMonitor Monitor;
-        //private static Dictionary<int, int> CustomCategoryIndex;
+        private static readonly Dictionary<int, int> IdMap = new Dictionary<int, int>();
+        private static readonly Dictionary<int, int> CategoryMap = new Dictionary<int, int>();
 
-        public static void Initialize(ModConfig Config, IMonitor monitor)
+        public static void Initialize(ModConfig config, IMonitor monitor)
         {
             Monitor = monitor;
 
+            var vanillaNameMap = new Dictionary<string, int>
+            {
+                { "Farming", 0 },
+                { "Foraging", 1 },
+                { "Fishing", 2 },
+                { "Mining", 3 },
+                { "Other", 4 }
+            };
+
+            foreach (KeyValuePair<string, Dictionary<string, List<int>>> definition in config.VanillaCategories)
+            {
+                var categoryIndex = vanillaNameMap[definition.Key];
+                var itemIDs = definition.Value["itemIDs"];
+                var objectCategories = definition.Value["objectCategories"];
+
+                foreach (int id in itemIDs)
+                {
+                    if (!IdMap.ContainsKey(id))
+                    {
+                        IdMap.Add(id, categoryIndex);
+                    }
+                }
+
+                foreach (int oc in objectCategories)
+                {
+                    if (!CategoryMap.ContainsKey(oc))
+                    {
+                        CategoryMap.Add(oc, categoryIndex);
+                    }
+                }
+            }
         }
 
         public static void MyHarmony_Postfix(StardewValley.Object o, ref int __result)
         {
+            if (CategoryPatch.IdMap.ContainsKey(o.ParentSheetIndex))
+            {
+                __result = CategoryPatch.IdMap[o.ParentSheetIndex];
+                return;
+            }
+            else if (CategoryPatch.CategoryMap.ContainsKey(o.Category))
+            {
+                __result = CategoryPatch.CategoryMap[o.Category];
+                return;
+            }
+            else
+            {
+                __result = 4;
+                return;
+            }
+
+/*
+
             switch (o.parentSheetIndex.Value)
             {
                 case 107:           // Dinosaur Egg
@@ -96,7 +142,7 @@ namespace EarningsTracker
                             __result = 4;
                             return;
                     }
-            }
+            }*/
         }
     }
 }

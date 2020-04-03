@@ -8,7 +8,6 @@ using StardewValley;
 namespace EarningsTracker
 {
     using Category = String;
-    using UserID = String;
 
     public class DataManager
     {
@@ -75,7 +74,6 @@ namespace EarningsTracker
                 }
             }
 
-            Categories.Add("Other");
             ItemsSold = new List<Item>();
         }
 
@@ -167,6 +165,7 @@ namespace EarningsTracker
 
         private Category GetCategoryForItem(Item item)
         {
+            
             if (SdvIdMap.ContainsKey(item.ParentSheetIndex))
             {
                 return SdvIdMap[item.ParentSheetIndex];
