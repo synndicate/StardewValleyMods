@@ -1,11 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using Harmony;
 using Netcode;
 using StardewModdingAPI;
 using StardewModdingAPI.Events;
 using StardewModdingAPI.Utilities;
 using StardewValley;
+
 
 namespace EarningsTracker
 {
@@ -39,7 +41,15 @@ namespace EarningsTracker
             helper.Events.Player.InventoryChanged += PlayerInventoryChanged;
 
             helper.Events.Input.ButtonPressed += InputButtonPressed;
+
+            CategoryPatch.Initialize(Config, Monitor);
+
+            var harmony = HarmonyInstance.Create(this.ModManifest.UniqueID);
+            harmony.Patch(
+                original: AccessTools.Method(typeof(StardewValley.Menus.ShippingMenu), nameof(StardewValley.Menus.ShippingMenu.getCategoryIndexForObject)),
+                postfix: new HarmonyMethod(typeof(CategoryPatch), nameof(CategoryPatch.MyHarmony_Postfix)));
         }
+
 
         /******************
         ** temp debugging methods
