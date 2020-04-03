@@ -17,6 +17,7 @@ namespace EarningsTracker
         ** Private Fields
         ******************/
 
+        private ModConfig Config;
         private DataManager DataManager;
         private bool InShopMenu = false;
 
@@ -27,6 +28,9 @@ namespace EarningsTracker
 
         public override void Entry(IModHelper helper)
         {
+            Config = Helper.ReadConfig<ModConfig>();
+            DataManager = new DataManager(Game1.MasterPlayer, Config, Monitor);
+
             helper.Events.Display.MenuChanged += DisplayMenuChanged;
             helper.Events.GameLoop.DayStarted += GameLoopDayStarted;
             helper.Events.GameLoop.DayEnding += GameLoopDayEnding;
@@ -35,8 +39,6 @@ namespace EarningsTracker
             helper.Events.Player.InventoryChanged += PlayerInventoryChanged;
 
             helper.Events.Input.ButtonPressed += InputButtonPressed;
-
-            DataManager = new DataManager(this.Monitor);
         }
 
         /******************

@@ -8,6 +8,7 @@ using StardewValley;
 namespace EarningsTracker
 {
     using Category = String;
+    using UserID = String;
 
     public class DataManager
     {
@@ -20,11 +21,13 @@ namespace EarningsTracker
         ** Private Fields
         ******************/
 
-        // Currently hardcoded during development but will later read from a config.json
-        private readonly Category[] CategoryNames = { "Farming", "Foraging", "Fishing", "Mining", "Other" };
-        private readonly Dictionary<Category, List<JsonItem>> ItemsSold = new Dictionary<Category, List<JsonItem>>();
-       
         private readonly IMonitor Monitor; // for logging
+
+        private readonly List<Category> Categories;
+        private readonly Dictionary<int, Category> SdvIdMap;
+        private readonly Dictionary<int, Category> SdvCategoryMap;
+
+        private readonly List<Item> ItemsSold;
 
         private int AnimalEarnings = 0;
         private int MailEarnings = 0;
@@ -37,47 +40,52 @@ namespace EarningsTracker
         ** Constructor
         ******************/
 
-        public DataManager(IMonitor monitor) // pass in config.json in constructor in future
+        public DataManager(Farmer mainPlayer, ModConfig config, IMonitor monitor) // pass in config.json in constructor in future
         {
             TotalTrackedEarnings = 0;
             Monitor = monitor;
 
-            // setup CategoryNames here in the future
+            Categories = new List<Category>();
+            SdvIdMap = new Dictionary<int, Category>();
+            SdvCategoryMap = new Dictionary<int, Category>();
 
-            for (int i = 0; i < CategoryNames.Length; i++)
+            foreach (KeyValuePair<Category, Dictionary<string, List<int>>> definition in config.CustomCategories)
             {
-                ItemsSold.Add(CategoryNames[i], new List<JsonItem>());
+                var categoryName = definition.Key;
+                var itemIDs = definition.Value["itemIDs"];
+                var objectCategories = definition.Value["objectCategories"];
+
+                Categories.Add(categoryName);
+
+                foreach (int id in itemIDs)
+                {
+                    if (!SdvIdMap.ContainsKey(id))
+                    {
+                        SdvIdMap.Add(id, categoryName);
+
+                    }
+                }
+
+                foreach (int oc in objectCategories)
+                {
+                    if (!SdvCategoryMap.ContainsKey(oc))
+                    {
+                        SdvCategoryMap.Add(oc, categoryName);
+                    }
+                }
             }
+
+            Categories.Add("Other");
+            ItemsSold = new List<Item>();
         }
 
         /******************
         ** Public Methods
         ******************/
 
-        public void AddItemSoldEvent(Farmer player, IEnumerable<Item> itemsSold)
+        public void AddItemSoldEvent(Farmer player, IEnumerable<Item> items)
         {
-            int checksum = 0;
-
-            foreach (Item item in itemsSold)
-            {
-                var salePrice = Utility.getSellToStorePriceOfItem(item);
-
-                Monitor.Log($"\tSold: {item.Stack} {FullItemName(item)}", LogLevel.Warn);
-                Monitor.Log($"\tSale Price: {salePrice}", LogLevel.Warn);
-
-                JsonItem jsonItem = new JsonItem(FullItemName(item), item.Stack, salePrice);
-                ItemsSold[GetCategoryNameForItem(item)].Add(jsonItem);
-
-                checksum += salePrice;
-            }
-
-            if (checksum != player.totalMoneyEarned - TotalTrackedEarnings)
-            {
-                Monitor.Log("Item sold failed checksum", LogLevel.Error);
-                Monitor.Log($"Change in earnings = {player.totalMoneyEarned - TotalTrackedEarnings}", LogLevel.Error);
-                Monitor.Log($"Checksum = {checksum}", LogLevel.Error);
-            }
-
+            ItemsSold.AddRange(items);
             UpdateTrackedEarnings(player);
         }
 
@@ -124,8 +132,13 @@ namespace EarningsTracker
 
         public JsonDay PackageDayData(Farmer player)
         {
-            return new JsonDay(new JsonCategoryMap(ParseShippingBin(player)), 
-                               new JsonCategoryMap(ItemsSold), 
+            var shippingBin = Game1.getFarm().getShippingBin(player);
+
+            Utility.consolidateStacks(shippingBin);
+            Utility.consolidateStacks(ItemsSold);
+
+            return new JsonDay(new JsonCategoryMap(CategorizeItems(shippingBin)), 
+                               new JsonCategoryMap(CategorizeItems(ItemsSold)), 
                                AnimalEarnings, MailEarnings, QuestEarnings, 
                                TrashEarnings, UnknownEarnings);
         }
@@ -134,65 +147,37 @@ namespace EarningsTracker
         ** Private Methods
         ******************/
 
-        private Dictionary<Category, List<JsonItem>> ParseShippingBin(Farmer player)
+        private Dictionary<Category, List<JsonItem>> CategorizeItems(IEnumerable<Item> items)
         {
-            var items = Game1.getFarm().getShippingBin(player);
-            Utility.consolidateStacks(items);
+            var map = new Dictionary<Category, List<JsonItem>>();
 
-            var listMap = new Dictionary<Category, List<JsonItem>>();
-
-            for (int i = 0; i < CategoryNames.Length; i++)
+            for (int i = 0; i < Categories.Count; i++)
             {
-                listMap.Add(CategoryNames[i], new List<JsonItem>());
+                map.Add(Categories[i], new List<JsonItem>());
             }
 
-            foreach (Item item in (IEnumerable<Item>)items)
+            foreach (Item item in items)
             {
                 JsonItem jsonItem = new JsonItem(FullItemName(item), item.Stack, Utility.getSellToStorePriceOfItem(item));
-                listMap[GetCategoryNameForItem(item)].Add(jsonItem);
+                map[GetCategoryForItem(item)].Add(jsonItem);
             }
 
-            return listMap;
+            return map;
         }
 
-        // swap this out to use config file in the future
-        private Category GetCategoryNameForItem(Item item)
+        private Category GetCategoryForItem(Item item)
         {
-            switch (item.parentSheetIndex.Value)
+            if (SdvIdMap.ContainsKey(item.ParentSheetIndex))
             {
-                case 296:
-                case 396:
-                case 402:
-                case 406:
-                case 410:
-                case 414:
-                case 418:
-                    return CategoryNames[1];
-                default:
-                    switch (item.Category)
-                    {
-                        case -81:
-                        case -27:
-                        case -23:
-                            return CategoryNames[1];
-                        case -80:
-                        case -79:
-                        case -75:
-                        case -26:
-                        case -14:
-                        case -6:
-                        case -5:
-                            return CategoryNames[0];
-                        case -20:
-                        case -4:
-                            return CategoryNames[2];
-                        case -15:
-                        case -12:
-                        case -2:
-                            return CategoryNames[3];
-                        default:
-                            return CategoryNames[4];
-                    }
+                return SdvIdMap[item.ParentSheetIndex];
+            }
+            else if (SdvCategoryMap.ContainsKey(item.Category))
+            {
+                return SdvCategoryMap[item.Category];
+            }
+            else
+            {
+                return "Other";
             }
         }
 

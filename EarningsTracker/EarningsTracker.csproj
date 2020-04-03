@@ -63,12 +63,14 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="src\ModConfig.cs" />
     <Compile Include="src\DataManager.cs" />
     <Compile Include="src\ModData.cs" />
     <Compile Include="src\EarningsTracker.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
+    <None Include=".editorconfig" />
     <None Include="manifest.json" />
     <None Include="packages.config" />
   </ItemGroup>

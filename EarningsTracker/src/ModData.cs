@@ -27,15 +27,15 @@ namespace EarningsTracker
     public sealed class JsonItem
     {
         public readonly string Name;
-        public readonly int Qty;
+        public readonly int Stack;
         public readonly int Value;
 
         private JsonItem() { }
 
-        public JsonItem(string name, int qty, int value) 
+        public JsonItem(string name, int stack, int value) 
         {
             Name = name;
-            Qty = qty;
+            Stack = stack;
             Value = value;
         }
     }
@@ -50,7 +50,7 @@ namespace EarningsTracker
         public JsonItemList(List<JsonItem> items)
         {
             Items = items;
-            Total = items.Aggregate(0, (acc, x) => acc + x.Value);
+            Total = Items.Aggregate(0, (acc, x) => acc + x.Value);
         }
     }
 
@@ -59,7 +59,7 @@ namespace EarningsTracker
         public readonly int Total;
         public readonly Dictionary<Category, JsonItemList> Categories;
 
-        private JsonCategoryMap() { }
+        public JsonCategoryMap() { }
 
         public JsonCategoryMap(Dictionary<Category, JsonItemList> categories)
         {
@@ -83,23 +83,89 @@ namespace EarningsTracker
         public readonly JsonCategoryMap Store;
         public readonly int Animals;
         public readonly int Mail;
-        public readonly int Quest;
+        public readonly int Quests;
         public readonly int Trash;
         public readonly int Unknown;
 
         private JsonDay() { }
 
-        public JsonDay(JsonCategoryMap shipped, JsonCategoryMap store, int animals, int mail, int quest, int trash, int unknown)
+        public JsonDay(JsonCategoryMap shipped, JsonCategoryMap store, int animals, int mail, int quests, int trash, int unknown)
         {
             Shipped = shipped;
             Store = store;
             Animals = animals;
             Mail = mail;
-            Quest = quest;
+            Quests = quests;
             Trash = trash;
             Unknown = unknown;
 
-            Total = shipped.Total + store.Total + animals + mail + quest + trash + unknown;
+            Total = Shipped.Total + Store.Total + Animals + Mail + Quests + Trash + Unknown;
+        }
+    }
+
+    public sealed class JsonWeek
+    {
+        public readonly int Total;
+        public readonly JsonCategoryMap Shipped;
+        public readonly JsonCategoryMap Store;
+        public readonly int Animals;
+        public readonly int Mail;
+        public readonly int Quests;
+        public readonly int Trash;
+        public readonly int Unknown;
+        public readonly List<JsonDay> Days;
+
+        public JsonWeek() { } // change to private 
+
+        public JsonWeek(List<JsonDay> days)
+        {
+            var totalShipped = Days
+                .Select(d => d.Shipped.Categories)
+                .Aggregate((acc, d) => 
+                {
+                    foreach (Category c in d.Keys)
+                    {
+                        if (acc.ContainsKey(c))
+                        {
+                            acc[c].Items.AddRange(d[c].Items);
+                        }
+                        else
+                        {
+                            acc.Add(c, d[c]);
+                        }
+                    }
+
+                    return acc;
+                });
+            Shipped = new JsonCategoryMap(totalShipped);
+
+            var totalStore = Days
+                .Select(d => d.Shipped.Categories)
+                .Aggregate((acc, d) =>
+                {
+                    foreach (Category c in d.Keys)
+                    {
+                        if (acc.ContainsKey(c))
+                        {
+                            acc[c].Items.AddRange(d[c].Items);
+                        }
+                        else
+                        {
+                            acc.Add(c, d[c]);
+                        }
+                    }
+
+                    return acc;
+                });
+            Store = new JsonCategoryMap(totalStore);
+
+            Animals = days.Aggregate(0, (acc, d) => acc + d.Animals);
+            Mail = days.Aggregate(0, (acc, d) => acc + d.Mail);
+            Quests = days.Aggregate(0, (acc, d) => acc + d.Quests);
+            Trash = days.Aggregate(0, (acc, d) => acc + d.Trash);
+            Unknown = days.Aggregate(0, (acc, d) => acc + d.Unknown);
+
+            Total = Shipped.Total + Store.Total + Animals + Mail + Quests + Trash + Unknown;
         }
     }
 }
