@@ -6,12 +6,12 @@ namespace EarningsTracker
 {
     public class HarmonyCategoryPatch
     {
-        private static readonly Dictionary<int, int> IdMap = new Dictionary<int, int>();
-        private static readonly Dictionary<int, int> CategoryMap = new Dictionary<int, int>();
+        private static Dictionary<int, int> IdMap;
+        private static Dictionary<int, int> CategoryMap;
 
         public static void Initialize(ModConfig config)
         {
-            var vanillaNameMap = new Dictionary<string, int>
+            var vanillaCategoryIndexes = new Dictionary<string, int>
             {
                 { "Farming" , 0 },
                 { "Foraging", 1 },
@@ -20,28 +20,15 @@ namespace EarningsTracker
                 { "Other"   , 4 }
             };
 
-            foreach (KeyValuePair<string, Dictionary<string, List<int>>> definition in config.VanillaCategories)
-            {
-                var categoryIndex = vanillaNameMap[definition.Key];
-                var itemIDs = definition.Value["itemIDs"];
-                var objectCategories = definition.Value["objectCategories"];
+            IdMap = config.VanillaCategories
+                .Select(d => new KeyValuePair<string, List<int>>(d.Key, d.Value?["itemIDs"] ?? new List<int>()))
+                .SelectMany(p => p.Value.Select(i => new Tuple<int, int>(i, vanillaCategoryIndexes[p.Key])))
+                .ToDictionary(t => t.Item1, t => t.Item2);
 
-                foreach (int id in itemIDs)
-                {
-                    if (!IdMap.ContainsKey(id))
-                    {
-                        IdMap.Add(id, categoryIndex);
-                    }
-                }
-
-                foreach (int oc in objectCategories)
-                {
-                    if (!CategoryMap.ContainsKey(oc))
-                    {
-                        CategoryMap.Add(oc, categoryIndex);
-                    }
-                }
-            }
+            CategoryMap = config.VanillaCategories
+                .Select(d => new KeyValuePair<string, List<int>>(d.Key, d.Value?["objectCategories"] ?? new List<int>()))
+                .SelectMany(p => p.Value.Select(i => new Tuple<int, int>(i, vanillaCategoryIndexes[p.Key])))
+                .ToDictionary(t => t.Item1, t => t.Item2);
         }
 
         public static void GetCategoryIndex_Postfix(StardewValley.Object o, ref int __result)

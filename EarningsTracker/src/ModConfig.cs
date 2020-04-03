@@ -10,6 +10,8 @@ namespace EarningsTracker
         public Dictionary<string, Dictionary<string, List<int>>> VanillaCategories;
         public Dictionary<string, Dictionary<string, List<int>>> CustomCategories;
 
+        private bool isValidated = false;
+
         public ModConfig()
         {
             VanillaCategories = new Dictionary<string, Dictionary<string, List<int>>>
@@ -88,6 +90,51 @@ namespace EarningsTracker
             };
         }
 
+        public void Validate()
+        {
+            var vIDDuplicates = VanillaCategories
+                .Select(d => new KeyValuePair<string, List<int>>(d.Key, d.Value?["itemIDs"] ?? new List<int>()))
+                .SelectMany(p => p.Value.Select(i => new Tuple<int, string>(i, p.Key)))
+                .GroupBy(x => x.Item1).Where(g => g.Count() > 1);
+
+            if (vIDDuplicates.Count() > 0)
+            {
+                throw new InvalidOperationException($"[config.json]: ItemID {vIDDuplicates.First().Key} is listed more than once in VanillaCategories");
+            }
+
+            var vOCDuplicates = VanillaCategories
+                .Select(d => new KeyValuePair<string, List<int>>(d.Key, d.Value?["objectCategories"] ?? new List<int>()))
+                .SelectMany(p => p.Value.Select(i => new Tuple<int, string>(i, p.Key)))
+                .GroupBy(x => x.Item1).Where(g => g.Count() > 1);
+
+            if (vOCDuplicates.Count() > 0)
+            {
+                throw new InvalidOperationException($"[config.json]: ObjectCategory {vOCDuplicates.First().Key} is listed more than once in VanillaCategories");
+            }
+
+            var cIDDuplicates = CustomCategories
+                .Select(d => new KeyValuePair<string, List<int>>(d.Key, d.Value?["itemIDs"] ?? new List<int>()))
+                .SelectMany(p => p.Value.Select(i => new Tuple<int, string>(i, p.Key)))
+                .GroupBy(x => x.Item1).Where(g => g.Count() > 1);
+
+            if (cIDDuplicates.Count() > 0)
+            {
+                throw new InvalidOperationException($"[config.json]: ItemID {cIDDuplicates.First().Key} is listed more than once in VanillaCategories");
+            }
+
+            var cOCDuplicates = CustomCategories
+                .Select(d => new KeyValuePair<string, List<int>>(d.Key, d.Value?["objectCategories"] ?? new List<int>()))
+                .SelectMany(p => p.Value.Select(i => new Tuple<int, string>(i, p.Key)))
+                .GroupBy(x => x.Item1).Where(g => g.Count() > 1);
+
+            if (cOCDuplicates.Count() > 0)
+            {
+                throw new InvalidOperationException($"[config.json]: ObjectCategory {cOCDuplicates.First().Key} is listed more than once in VanillaCategories");
+            }
+
+            isValidated = true;
+        }
+
         public List<string> CategoryNames()
         {
             return (UseCustomCategories ? CustomCategories : VanillaCategories).Keys.ToList();
@@ -95,36 +142,22 @@ namespace EarningsTracker
 
         public Dictionary<int, string> ItemIDMap()
         {
-            var map = (UseCustomCategories ? CustomCategories : VanillaCategories)
-                .Select(d => new KeyValuePair<string, List<int>>(d.Key, d.Value?["itemIDs"] ?? new List<int>()))
-                .SelectMany(p => p.Value.Select(i => new Tuple<int, string>(i, p.Key)));
-
-            var duplicates = map.GroupBy(x => x.Item1).Where(g => g.Count() > 1).ToList();
-            if (duplicates.Count() > 0)
-            {
-                throw new InvalidOperationException($"[config.json]: ItemID {duplicates.First().Key} is listed in more than 1 category");
-            }
-            else
-            {
-                return map.ToDictionary(t => t.Item1, t => t.Item2);
-            }
+            return BuildMap(UseCustomCategories ? CustomCategories : VanillaCategories, sectionKey: "itemIDs");
         }
 
         public Dictionary<int, string> ObjectCategoryMap()
         {
-            var map = (UseCustomCategories ? CustomCategories : VanillaCategories)
-                .Select(d => new KeyValuePair<string, List<int>>(d.Key, d.Value?["objectCategories"] ?? new List<int>()))
-                .SelectMany(p => p.Value.Select(i => new Tuple<int, string>(i, p.Key)));
+            return BuildMap(UseCustomCategories ? CustomCategories : VanillaCategories, sectionKey: "objectCategories");
+        }
 
-            var duplicates = map.GroupBy(x => x.Item1).Where(g => g.Count() > 1).ToList();
-            if (duplicates.Count() > 0)
-            {
-                throw new InvalidOperationException($"[config.json]: Object Category {duplicates.First().Key} is listed in more than 1 category");
-            }
-            else
-            {
-                return map.ToDictionary(t => t.Item1, t => t.Item2);
-            }
+        private Dictionary<int, string> BuildMap(Dictionary<string, Dictionary<string, List<int>>> definition, string sectionKey)
+        {
+            if (!isValidated) { Validate(); }
+
+            return definition
+                .Select(d => new KeyValuePair<string, List<int>>(d.Key, d.Value?[sectionKey] ?? new List<int>()))
+                .SelectMany(p => p.Value.Select(i => new Tuple<int, string>(i, p.Key)))
+                .ToDictionary(t => t.Item1, t => t.Item2);
         }
     }
 }

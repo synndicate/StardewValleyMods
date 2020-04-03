@@ -27,6 +27,7 @@ namespace EarningsTracker
         {
             var config = Helper.ReadConfig<ModConfig>();
             CheckConfig(config);
+
             EarningsTracker = new EarningsTracker(Game1.MasterPlayer, config, Monitor);
 
             helper.Events.Display.MenuChanged += DisplayMenuChanged;
@@ -49,16 +50,22 @@ namespace EarningsTracker
         {
             try
             {
-                config.ItemIDMap();
-                config.ObjectCategoryMap();
+                config.Validate();
             }
             catch (InvalidOperationException)
             {
-                Monitor.Log($"config.json failed to load", LogLevel.Error);
+                Monitor.Log($"Failed to load config.json", LogLevel.Error);
                 throw;
             }
-            
-            Monitor.Log($"config.json loaded with {config.CategoryNames().Count()} categories", LogLevel.Trace);
+
+            if (config.UseCustomCategories)
+            {
+                Monitor.Log($"Loaded config.json with {config.CategoryNames().Count()} custom categories", LogLevel.Info);
+            }
+            else
+            {
+                Monitor.Log($"Loaded config.json without custom categories", LogLevel.Info);
+            }
         }
 
         /******************
