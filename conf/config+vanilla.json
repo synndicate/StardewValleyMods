@@ -1,0 +1,51 @@
+{
+  "VanillaCategories": {
+    "Farming": {
+      "itemIDs": [],
+      "objectCategories": [
+        -80,
+        -79,
+        -75,
+        -26,
+        -14,
+        -6,
+        -5
+      ]
+    },
+    "Foraging": {
+      "itemIDs": [
+        296,
+        396,
+        402,
+        406,
+        410,
+        414,
+        418
+      ],
+      "objectCategories": [
+        -81,
+        -27,
+        -23
+      ]
+    },
+    "Fishing": {
+      "itemIDs": [],
+      "objectCategories": [
+        -20,
+        -4
+      ]
+    },
+    "Mining": {
+      "itemIDs": [],
+      "objectCategories": [
+        -15,
+        -12,
+        -2
+      ]
+    },
+    "Other": {
+      "itemIDs": [],
+      "objectCategories": []
+    }
+  },
+}
