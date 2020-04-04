@@ -15,9 +15,9 @@ namespace EarningsTracker
         ** Private Fields
         ******************/
 
-        private EarningsTracker EarningsTracker;
-        private bool InShopMenu = false;
+        private DataManager DataManager;
 
+        private bool InShopMenu = false;
 
         /******************
         ** Entry Point
@@ -26,13 +26,14 @@ namespace EarningsTracker
         public override void Entry(IModHelper helper)
         {
             var config = Helper.ReadConfig<ModConfig>();
-            CheckConfig(config);
+            Validate(config);
 
-            EarningsTracker = new EarningsTracker(Game1.MasterPlayer, config, Monitor);
+            DataManager = new DataManager(config, Monitor);
 
             helper.Events.Display.MenuChanged += DisplayMenuChanged;
             helper.Events.GameLoop.DayStarted += GameLoopDayStarted;
             helper.Events.GameLoop.DayEnding += GameLoopDayEnding;
+            helper.Events.GameLoop.GameLaunched += GameLoopGameLaunched;
             helper.Events.GameLoop.SaveLoaded += GameLoopSaveLoaded;
             helper.Events.GameLoop.Saving += GameLoopSaving;
             helper.Events.Input.ButtonPressed += InputButtonPressed;
@@ -46,7 +47,7 @@ namespace EarningsTracker
                 postfix: new HarmonyMethod(typeof(HarmonyCategoryPatch), nameof(HarmonyCategoryPatch.GetCategoryIndex_Postfix)));
         }
 
-        private void CheckConfig(ModConfig config)
+        private void Validate(ModConfig config)
         {
             try
             {
@@ -75,7 +76,7 @@ namespace EarningsTracker
         private void DisplayMenuChanged(object sender, MenuChangedEventArgs e)
         {
             if (!Context.IsWorldReady) { return; }
-                
+
             if (e.NewMenu is StardewValley.Menus.ShopMenu)
             {
                 InShopMenu = true;
@@ -85,24 +86,29 @@ namespace EarningsTracker
                 InShopMenu = false;
             }
 
-            if (Game1.player.totalMoneyEarned <= EarningsTracker.TotalTrackedEarnings) { return; }
+            if (Game1.player.totalMoneyEarned <= DataManager.TotalTrackedEarnings()) { return; }
 
-            if (e.OldMenu is StardewValley.Menus.GameMenu) { EarningsTracker.AddTrashEarning(Game1.player); }
-            else if (e.OldMenu is StardewValley.Menus.QuestLog) { EarningsTracker.AddQuestEarning(Game1.player); }
-            else if (e.OldMenu is StardewValley.Menus.AnimalQueryMenu) { EarningsTracker.AddAnimalEarning(Game1.player); }
-            else if (e.NewMenu is StardewValley.Menus.LetterViewerMenu) { EarningsTracker.AddMailEarning(Game1.player); }
-            else { EarningsTracker.AddUnknownEarning(Game1.player); }
+            if (e.OldMenu is StardewValley.Menus.GameMenu) { DataManager.AddTrashEarning(); }
+            else if (e.OldMenu is StardewValley.Menus.QuestLog) { DataManager.AddQuestEarning(); }
+            else if (e.OldMenu is StardewValley.Menus.AnimalQueryMenu) { DataManager.AddAnimalEarning(); }
+            else if (e.NewMenu is StardewValley.Menus.LetterViewerMenu) { DataManager.AddMailEarning(); }
+            else { DataManager.AddUnknownEarning(); }
         }
 
         private void GameLoopDayStarted(object sender, DayStartedEventArgs e)
         {
-            EarningsTracker.UpdateTrackedEarnings(Game1.player);
+            DataManager.UpdateAllPlayerEarnings();
         }
 
         private void GameLoopDayEnding(object sender, DayEndingEventArgs e)
         {
-            // Game clears shipping bin if done later
-            Helper.Data.WriteJsonFile(ModData.JsonPath(StardewModdingAPI.Constants.SaveFolderName), EarningsTracker.PackageDayData(Game1.player));
+            var data = DataManager.PackageEarningsData();
+            Helper.Data.WriteJsonFile(ModData.JsonPath(StardewModdingAPI.Constants.SaveFolderName), data);
+        }
+
+        private void GameLoopGameLaunched(object sender, GameLaunchedEventArgs e)
+        {
+            DataManager.Register(Game1.MasterPlayer);
         }
 
         private void GameLoopSaveLoaded(object sender, SaveLoadedEventArgs e)
@@ -141,10 +147,10 @@ namespace EarningsTracker
         {
             if (!e.IsLocalPlayer) { return; }
             if (!InShopMenu) { return; }
-            if (Game1.player.totalMoneyEarned <= EarningsTracker.TotalTrackedEarnings) { return; }
+            if (Game1.player.totalMoneyEarned <= DataManager.TotalTrackedEarnings()) { return; }
 
-            if (e.Removed.Count() > 0) { EarningsTracker.AddItemSoldEvent(Game1.player, e.Removed); }
-            else if (e.QuantityChanged.Count() > 0) { EarningsTracker.AddItemSoldEvent(Game1.player, e.QuantityChanged); }
+            if (e.Removed.Count() > 0) { DataManager.AddItemSoldEvent(e.Removed); }
+            else if (e.QuantityChanged.Count() > 0) { DataManager.AddItemSoldEvent(e.QuantityChanged); }
             else { Monitor.Log("Unaccounted earnings from an item removed from inventory", LogLevel.Error); }
         }
     }

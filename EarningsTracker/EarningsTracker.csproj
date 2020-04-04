@@ -64,6 +64,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="src\DataManager.cs" />
     <Compile Include="src\DataModel.cs" />
     <Compile Include="src\HarmonyCategoryPatch.cs" />
     <Compile Include="src\ModConfig.cs" />

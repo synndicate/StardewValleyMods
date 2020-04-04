@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using StardewModdingAPI;
-using StardewModdingAPI.Events;
 using StardewModdingAPI.Utilities;
 using StardewValley;
 
@@ -21,8 +19,8 @@ namespace EarningsTracker
         ** Private Fields
         ******************/
 
-        private readonly IMonitor Monitor; // for logging
         private readonly ModConfig Config;
+        private readonly Farmer Player;
 
         private readonly List<SItem> ItemsSold;
 
@@ -37,10 +35,11 @@ namespace EarningsTracker
         ** Constructor
         ******************/
 
-        public EarningsTracker(Farmer mainPlayer, ModConfig config, IMonitor monitor)
+        public EarningsTracker(Farmer player, ModConfig config)
         {
-            Monitor = monitor;
             Config = config;
+            Player = player;
+
             TotalTrackedEarnings = 0;
             ItemsSold = new List<SItem>();
         }
@@ -49,62 +48,51 @@ namespace EarningsTracker
         ** Public Methods
         ******************/
 
-        public void AddItemSoldEvent(Farmer player, IEnumerable<SItem> items)
+        public void AddItemSoldEvent(IEnumerable<SItem> items)
         {
             ItemsSold.AddRange(items);
-            UpdateTrackedEarnings(player);
+            UpdateEarnings();
         }
 
-        public void AddItemSoldEvent(Farmer player, IEnumerable<ItemStackSizeChange> itemsSold)
+        public void AddAnimalEarning()
         {
-            AddItemSoldEvent(player, itemsSold
-                .Select(change => { change.Item.Stack = change.OldSize - change.NewSize; return change.Item; }));
+            AnimalEarnings += Convert.ToInt32(Player.totalMoneyEarned - TotalTrackedEarnings);
+            UpdateEarnings();
+        }
+        public void AddMailEarning()
+        {
+            MailEarnings += Convert.ToInt32(Player.totalMoneyEarned - TotalTrackedEarnings);
+            UpdateEarnings();
+        }
+        public void AddQuestEarning()
+        {
+            QuestEarnings += Convert.ToInt32(Player.totalMoneyEarned - TotalTrackedEarnings);
+            UpdateEarnings();
+        }
+        public void AddTrashEarning()
+        {
+            TrashEarnings += Convert.ToInt32(Player.totalMoneyEarned - TotalTrackedEarnings);
+            UpdateEarnings();
+        }
+        public void AddUnknownEarning()
+        {
+            UnknownEarnings += Convert.ToInt32(Player.totalMoneyEarned - TotalTrackedEarnings);
+            UpdateEarnings();
+        }
+        public void UpdateEarnings() 
+        {
+            TotalTrackedEarnings = Player.totalMoneyEarned;
         }
 
-        public void AddAnimalEarning(Farmer player)
+        public Day PackageDayData()
         {
-            Monitor.Log($"Earned {player.totalMoneyEarned - TotalTrackedEarnings}g from selling an animal", LogLevel.Warn);
-            AnimalEarnings += Convert.ToInt32(player.totalMoneyEarned - TotalTrackedEarnings);
-            UpdateTrackedEarnings(player);
-        }
-        public void AddMailEarning(Farmer player)
-        {
-            Monitor.Log($"Earned {player.totalMoneyEarned - TotalTrackedEarnings}g from mail attachment", LogLevel.Warn);
-            MailEarnings += Convert.ToInt32(player.totalMoneyEarned - TotalTrackedEarnings);
-            UpdateTrackedEarnings(player);
-        }
-        public void AddQuestEarning(Farmer player)
-        {
-            Monitor.Log($"Earned {player.totalMoneyEarned - TotalTrackedEarnings}g from quest reward", LogLevel.Warn);
-            QuestEarnings += Convert.ToInt32(player.totalMoneyEarned - TotalTrackedEarnings);
-            UpdateTrackedEarnings(player);
-        }
-        public void AddTrashEarning(Farmer player)
-        {
-            Monitor.Log($"Earned {player.totalMoneyEarned - TotalTrackedEarnings}g from reclaiming trash", LogLevel.Warn);
-            TrashEarnings += Convert.ToInt32(player.totalMoneyEarned - TotalTrackedEarnings);
-            UpdateTrackedEarnings(player);
-        }
-        public void AddUnknownEarning(Farmer player)
-        {
-            Monitor.Log($"Earned {player.totalMoneyEarned - TotalTrackedEarnings}g from unknown source", LogLevel.Error);
-            UnknownEarnings += Convert.ToInt32(player.totalMoneyEarned - TotalTrackedEarnings);
-            UpdateTrackedEarnings(player);
-        }
-        public void UpdateTrackedEarnings(Farmer player) 
-        {
-            TotalTrackedEarnings = player.totalMoneyEarned;
-        }
-
-        public JsonDay PackageDayData(Farmer player)
-        {
-            var shippingBin = Game1.getFarm().getShippingBin(player);
+            var shippingBin = Game1.getFarm().getShippingBin(Player);
 
             Utility.consolidateStacks(shippingBin);
             Utility.consolidateStacks(ItemsSold);
 
-            return new JsonDay(new Day(TodayAsString(), TodayAsIndex(), CategorizeItems(shippingBin), CategorizeItems(ItemsSold), 
-                                        AnimalEarnings, MailEarnings, QuestEarnings, TrashEarnings, UnknownEarnings));
+            return new Day(SDate.Now(), CategorizeItems(shippingBin), CategorizeItems(ItemsSold),
+                AnimalEarnings, MailEarnings, QuestEarnings, TrashEarnings, UnknownEarnings);
         }
 
         /******************
@@ -176,27 +164,6 @@ namespace EarningsTracker
             {
                 return item.DisplayName;
             }
-        }
-
-        private string TodayAsString()
-        {
-            // Y1 Summer - Day 1 (Monday)
-            var today = SDate.Now();
-            return $"Y{today.Year} {today.Season.First().ToString().ToUpper() + today.Season.Substring(1)} - Day {today.Day} ({today.DayOfWeek})";
-        }
-
-        private int TodayAsIndex()
-        {
-            var today = SDate.Now();
-            var seasonIndex = new Dictionary<string, int> 
-            {
-                { "spring", 0 },
-                { "summer", 1 },
-                { "fall"  , 2 },
-                { "winter", 3 }
-            };
-
-            return (today.Year - 1) * (28 * 4) + seasonIndex[today.Season] * 28 + today.Day;
         }
     }
 }
