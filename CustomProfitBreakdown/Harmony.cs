@@ -11,7 +11,7 @@ namespace Synndicate.Stardew.CustomProfitBreakdown
 
         public static void Initialize(ModConfig config)
         {
-            var sections = new List<JsonSection> { config.Section1, config.Section2, config.Section3, config.Section4 };
+            var sections = new List<JsonSection> { config.Section1, config.Section2, config.Section3, config.Section4, config.Other };
 
             ItemMap = sections
                 .SelectMany((s, idx) => s.Items.Select(item => new { item, idx }))

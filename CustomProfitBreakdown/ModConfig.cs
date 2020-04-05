@@ -14,6 +14,7 @@ namespace Synndicate.Stardew.CustomProfitBreakdown
         public JsonSection Section2 { get; set; }
         public JsonSection Section3 { get; set; }
         public JsonSection Section4 { get; set; }
+        public JsonSection Other { get; set; }
 
         public ModConfig()
         {
@@ -31,11 +32,14 @@ namespace Synndicate.Stardew.CustomProfitBreakdown
             Section4 = new JsonSection("Mining",
                 new List<int>(),
                 new List<int> { -15, -12, -2 });
+            Other = new JsonSection("Other",
+                new List<int>(),
+                new List<int>());
         }
 
         public void Validate(IMonitor monitor = null)
         {
-            var sections = new List<JsonSection> { Section1, Section2, Section3, Section4 };
+            var sections = new List<JsonSection> { Section1, Section2, Section3, Section4, Other };
 
             var itemDuplicates = sections
                 .SelectMany(s => s.Items)
