@@ -18,6 +18,8 @@ namespace Synndicate.Stardew.CustomProfitBreakdown
 
         public override void Entry(IModHelper helper)
         {
+            var config = helper.ReadConfig<ModConfig>();
+            config.Validate(Monitor);
 
         }
 

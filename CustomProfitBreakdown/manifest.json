@@ -1,0 +1,10 @@
+{
+    "Name": "Custom Profit Breakdown",
+    "Author": "Synndicate",
+    "Version": "1.0.0",
+    "Description": "Choose which items go into each section of the profit breakdown",
+    "UniqueID": "Synndicate.CustomProfitBreakdown",
+    "EntryDll": "CustomProfitBreakdown.dll",
+    "MinimumApiVersion": "3.0.0",
+    "UpdateKeys": []
+}
