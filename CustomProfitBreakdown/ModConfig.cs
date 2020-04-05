@@ -9,13 +9,16 @@ namespace Synndicate.Stardew.CustomProfitBreakdown
 {
     public class ModConfig
     {
-        public JsonSection Section1;
-        public JsonSection Section2;
-        public JsonSection Section3;
-        public JsonSection Section4;
+        public SButton BinTotalKey  { get; set; }
+        public JsonSection Section1 { get; set; }
+        public JsonSection Section2 { get; set; }
+        public JsonSection Section3 { get; set; }
+        public JsonSection Section4 { get; set; }
 
         public ModConfig()
         {
+            BinTotalKey = SButton.B;
+
             Section1 = new JsonSection("Farming",
                 new List<int>(), 
                 new List<int> { -80, -79, -75, -26, -14, -6, -5 });
