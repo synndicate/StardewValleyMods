@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using StardewModdingAPI;
 
 namespace Synndicate.Stardew.CustomProfitBreakdown
@@ -40,7 +38,6 @@ namespace Synndicate.Stardew.CustomProfitBreakdown
         public void Validate(IMonitor monitor = null)
         {
             var sections = new List<JsonSection> { Section1, Section2, Section3, Section4, Other };
-
             var itemDuplicates = sections
                 .SelectMany(s => s.Items)
                 .GroupBy(i => i)
@@ -51,6 +48,7 @@ namespace Synndicate.Stardew.CustomProfitBreakdown
             {
                 itemDuplicates.ToList()
                     .ForEach(i => monitor?.Log($"config.json: Item ({i}) is listed in more than one section", LogLevel.Error));
+               
                 throw new InvalidOperationException("Failed to load config.json");
             }
 
@@ -64,6 +62,7 @@ namespace Synndicate.Stardew.CustomProfitBreakdown
             {
                 categoryDuplicates.ToList()
                     .ForEach(i => monitor?.Log($"config.json: Category ({i}) is listed in more than one section", LogLevel.Error));
+                
                 throw new InvalidOperationException("Failed to load config.json");
             }
         }

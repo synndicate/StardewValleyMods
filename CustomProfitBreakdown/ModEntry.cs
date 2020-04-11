@@ -34,6 +34,10 @@ namespace Synndicate.Stardew.CustomProfitBreakdown
             Config = config;
         }
 
+        /*****************
+        ** IAssetEditor
+        *****************/
+
         public bool CanEdit<T>(IAssetInfo asset)
         {
             return asset.AssetNameEquals("Strings\\StringsFromCSFiles");
@@ -43,14 +47,16 @@ namespace Synndicate.Stardew.CustomProfitBreakdown
         {
             IDictionary<string, string> data = asset.AsDictionary<string, string>().Data;
 
-            data["ShippingMenu.cs.11389"] = Config.Section1.Name;
-            data["ShippingMenu.cs.11390"] = Config.Section2.Name;
-            data["ShippingMenu.cs.11391"] = Config.Section3.Name;
-            data["ShippingMenu.cs.11392"] = Config.Section4.Name;
+            data["ShippingMenu.cs.11389"] = " " + Config.Section1.Name;
+            data["ShippingMenu.cs.11390"] = " " + Config.Section2.Name;
+            data["ShippingMenu.cs.11391"] = " " + Config.Section3.Name;
+            data["ShippingMenu.cs.11392"] = " " + Config.Section4.Name;
+            data["ShippingMenu.cs.11393"] = " " + "Other";
+            data["ShippingMenu.cs.11394"] = " " + "Total";
         }
 
         /*****************
-        ** Private Methods
+        ** Event Handlers
         *****************/
 
         private void InputButtonPressed(object sender, ButtonPressedEventArgs e)
